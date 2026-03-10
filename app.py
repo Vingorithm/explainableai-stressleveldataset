@@ -145,69 +145,40 @@ st.markdown("""
 
 
 # ════════════════════════════════════════════════════════════════
-# DEFINITIVE SHAP FIX
+# SHAP + XGBoost 2.x COMPATIBILITY
 #
-# Root cause: XGBoost >= 2.x stores base_score as a list of floats
-# in scientific notation inside save_config() output, e.g.:
-#   "[5E-1,5E-1,5E-1]"   (one value per class)
-# SHAP's XGBTreeModelLoader calls:
-#   float(xgb_params["learner_model_param"]["base_score"])
-# which crashes on the list string.
+# XGBoost >= 2.x stores base_score as a per-class list in
+# save_config() output, e.g. "[1.93E-2,-2.51E-2,5.83E-3]".
+# SHAP 0.44.x calls float() on that string and crashes.
 #
-# Our previous fix patched save_model() output but SHAP internally
-# calls save_config() — a completely different method/format.
-#
-# Fix: monkey-patch the booster's save_config() method to return
-# a scalar base_score before SHAP reads it, then restore it after.
+# Fix: patch save_config() on the BOOSTER INSTANCE right before
+# passing it to TreeExplainer. No class-level patching (which
+# causes infinite recursion). No file round-trips.
 # ════════════════════════════════════════════════════════════════
-def _patch_shap_xgb_base_score():
+def _fix_booster_base_score(booster):
     """
-    Intercept shap.explainers._tree.XGBTreeModelLoader.__init__
-    and wrap xgb_model.save_config() so the bracketed list
-    base_score '[5E-1,5E-1,5E-1]' becomes a plain scalar '0.5'.
-    This is applied once at module level.
+    Replace booster.save_config with a version that converts a
+    bracketed list base_score to a plain scalar string.
+    Returns the same booster with the method replaced in-place.
     """
-    try:
-        import shap.explainers._tree as _shap_tree
+    _orig_sc = booster.save_config          # capture the real method
 
-        _orig_loader_init = _shap_tree.XGBTreeModelLoader.__init__
-
-        def _patched_loader_init(self, xgb_model):
-            # Only patch if the model has save_config (i.e. is an XGBoost Booster)
-            if not hasattr(xgb_model, "save_config"):
-                return _orig_loader_init(self, xgb_model)
-
-            _orig_save_config = xgb_model.save_config
-
-            def _fixed_save_config():
-                raw_cfg = _orig_save_config()
-                try:
-                    cfg = json.loads(raw_cfg)
-                    lmp = cfg.get("learner", {}).get("learner_model_param", {})
-                    bs  = lmp.get("base_score", "0.5")
-                    # If base_score is a bracketed list, extract the first numeric token
-                    if "[" in str(bs):
-                        tokens = [t for t in re.split(r"[,\[\]\s]+", str(bs)) if t]
-                        scalar = float(tokens[0]) if tokens else 0.5
-                        cfg["learner"]["learner_model_param"]["base_score"] = str(scalar)
-                    return json.dumps(cfg)
-                except Exception:
-                    return raw_cfg  # return original if anything goes wrong
-
-            xgb_model.save_config = _fixed_save_config
-            try:
-                _orig_loader_init(self, xgb_model)
-            finally:
-                xgb_model.save_config = _orig_save_config  # always restore
-
-        _shap_tree.XGBTreeModelLoader.__init__ = _patched_loader_init
-
-    except Exception:
-        pass  # If SHAP internal structure changes, fail silently
-
-
-# Apply the patch once at startup
-_patch_shap_xgb_base_score()
+    def _patched_sc():
+        raw = _orig_sc()                    # call the real method (no recursion)
+        try:
+            cfg = json.loads(raw)
+            lmp = cfg.get("learner", {}).get("learner_model_param", {})
+            bs  = str(lmp.get("base_score", "0.5"))
+            if "[" in bs:
+                tokens = [t for t in re.split(r"[,\[\]\s]+", bs) if t]
+                scalar = float(tokens[0]) if tokens else 0.5
+                cfg["learner"]["learner_model_param"]["base_score"] = str(scalar)
+            return json.dumps(cfg)
+        except Exception:
+            return raw                      # fallback: return original
+    
+    booster.save_config = _patched_sc       # instance-level replacement only
+    return booster
 
 
 # ════════════════════════════════════════════════════════════════
@@ -589,9 +560,10 @@ with tab_pred:
 
         with st.spinner("Menghitung SHAP values..."):
             try:
-                # The monkey-patch applied at module load ensures save_config() returns
-                # a scalar base_score that SHAP can parse.
-                booster   = model.get_booster()
+                # Patch save_config() on the booster instance directly.
+                # This fixes XGBoost 2.x storing base_score as a bracketed
+                # list string that SHAP cannot parse with float().
+                booster   = _fix_booster_base_score(model.get_booster())
                 explainer = shap.TreeExplainer(booster)
                 shap_raw  = explainer.shap_values(df_scaled)
 
