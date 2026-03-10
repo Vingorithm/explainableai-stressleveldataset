@@ -522,18 +522,21 @@ with tab_pred:
         # ── Section C: Feature Summary ───────────────────────────
         st.markdown("### Input Anda — Ringkasan Fitur")
 
-        # Show engineered features too
-        summary_data = {
-            "Fitur": [],
-            "Nilai Input": [],
-            "Nilai Scaled": [],
-        }
+        # Build summary from df_input (already ordered by selected_features) and df_scaled
+        # engineered dict holds ALL features including the two derived ones
+        summary_rows = []
         for feat in selected_features:
-            summary_data["Fitur"].append(feat.replace("_"," ").title())
-            summary_data["Nilai Input"].append(round(engineered.get(feat, 0), 3))
-            summary_data["Nilai Scaled"].append(round(df_scaled[feat].iloc[0], 3))
+            raw_val = df_input[feat].iloc[0]      # from the DataFrame, guaranteed to exist
+            scaled_val = df_scaled[feat].iloc[0]
+            is_engineered = feat in ("academic_stress_index", "screen_sleep_ratio")
+            summary_rows.append({
+                "Fitur": feat.replace("_", " ").title(),
+                "Tipe": "🛠 Engineered" if is_engineered else "📥 Input Langsung",
+                "Nilai Input (Raw)": round(float(raw_val), 4),
+                "Nilai Scaled": round(float(scaled_val), 4),
+            })
 
-        df_summary = pd.DataFrame(summary_data)
+        df_summary = pd.DataFrame(summary_rows)
         st.dataframe(df_summary, use_container_width=True, hide_index=True)
 
         st.markdown("<hr>", unsafe_allow_html=True)
@@ -549,7 +552,21 @@ with tab_pred:
 
         with st.spinner("Menghitung SHAP values…"):
             try:
-                explainer   = shap.TreeExplainer(model)
+                # ── FIX: XGBoost >= 2.x stores base_score as a bracketed
+                #    scientific-notation string that old SHAP cannot parse.
+                #    Patch the booster config to a plain float before building explainer.
+                import json, re as _re
+                try:
+                    _booster = model.get_booster()
+                    _cfg     = json.loads(_booster.save_config())
+                    _raw_bs  = _cfg["learner"]["learner_model_param"]["base_score"]
+                    _clean   = float(_re.sub(r"[\[\]]", "", _raw_bs).strip())
+                    _booster.set_param({"base_score": str(_clean)})
+                    model_for_shap = _booster
+                except Exception:
+                    model_for_shap = model
+
+                explainer   = shap.TreeExplainer(model_for_shap)
                 shap_values = explainer.shap_values(df_scaled)
 
                 # shap_values shape: (n_samples, n_features, n_classes)  for XGBoost multi-class
