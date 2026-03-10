@@ -2,7 +2,6 @@
 # app.py — Prediksi Tingkat Stres Mahasiswa
 # Framework  : Streamlit
 # Model      : XGBoost + SHAP Explainability
-# Author     : Stress Level Prediction Project
 # ============================================================
 
 import streamlit as st
@@ -14,6 +13,9 @@ import seaborn as sns
 import joblib
 import shap
 import os
+import json
+import re
+import tempfile
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -30,19 +32,18 @@ st.markdown("""
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-  /* Root palette */
   :root {
-    --bg:        #0d0f1a;
-    --surface:   #141728;
-    --border:    #252840;
-    --accent1:   #6c63ff;
-    --accent2:   #ff6b8a;
-    --accent3:   #43e8d8;
-    --text:      #e8eaf6;
-    --muted:     #8b8fad;
-    --low:       #43e8d8;
-    --mid:       #f9c74f;
-    --high:      #ff6b8a;
+    --bg:      #0d0f1a;
+    --surface: #141728;
+    --border:  #252840;
+    --accent1: #6c63ff;
+    --accent2: #ff6b8a;
+    --accent3: #43e8d8;
+    --text:    #e8eaf6;
+    --muted:   #8b8fad;
+    --low:     #43e8d8;
+    --mid:     #f9c74f;
+    --high:    #ff6b8a;
   }
 
   html, body, [class*="css"] {
@@ -51,7 +52,6 @@ st.markdown("""
     color: var(--text);
   }
 
-  /* Hero header */
   .hero {
     background: linear-gradient(135deg, #1a1d35 0%, #0d0f1a 60%, #1a1230 100%);
     border: 1px solid var(--border);
@@ -102,7 +102,6 @@ st.markdown("""
     margin: 0;
   }
 
-  /* Cards */
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -119,7 +118,6 @@ st.markdown("""
     margin-bottom: 0.8rem;
   }
 
-  /* Stress badge */
   .badge {
     display: inline-block;
     padding: 0.35rem 1.1rem;
@@ -133,7 +131,6 @@ st.markdown("""
   .badge-mid  { background: rgba(249,199, 79,0.18); color: var(--mid);  border: 1px solid var(--mid);  }
   .badge-high { background: rgba(255,107,138,0.18); color: var(--high); border: 1px solid var(--high); }
 
-  /* Metric tiles */
   .metric-row { display: flex; gap: 1rem; margin-bottom: 1.2rem; }
   .metric-tile {
     flex: 1;
@@ -156,7 +153,6 @@ st.markdown("""
     text-transform: uppercase;
   }
 
-  /* Probability bar */
   .prob-row { margin-bottom: 0.6rem; }
   .prob-label {
     font-size: 0.82rem;
@@ -174,22 +170,18 @@ st.markdown("""
   .prob-bar-fill {
     height: 100%;
     border-radius: 999px;
-    transition: width 0.6s ease;
   }
 
-  /* Sidebar */
   [data-testid="stSidebar"] {
     background: var(--surface) !important;
     border-right: 1px solid var(--border) !important;
   }
   [data-testid="stSidebar"] * { color: var(--text) !important; }
 
-  /* Tabs */
   .stTabs [data-baseweb="tab-list"] {
     gap: 0.5rem;
     background: transparent;
     border-bottom: 1px solid var(--border);
-    padding-bottom: 0;
   }
   .stTabs [data-baseweb="tab"] {
     background: transparent !important;
@@ -208,22 +200,17 @@ st.markdown("""
     border-bottom: 1px solid var(--surface) !important;
   }
 
-  /* Expander */
   [data-testid="stExpander"] {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
   }
 
-  /* Divider */
   hr { border-color: var(--border) !important; }
-
-  /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-  /* Hide Streamlit default branding */
   #MainMenu, footer { visibility: hidden; }
   header { visibility: hidden; }
 
@@ -237,9 +224,7 @@ st.markdown("""
     letter-spacing: 0.08em;
     padding: 0.6rem 1.6rem !important;
     width: 100%;
-    transition: opacity 0.2s;
   }
-  .stButton>button:hover { opacity: 0.85; }
 
   .info-box {
     background: rgba(108,99,255,0.08);
@@ -263,22 +248,61 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# ── Helper: load model ────────────────────────────────────────
+# ════════════════════════════════════════════════════════════════
+# LOAD MODEL
+# Reads selected_features.pkl to know what was ACTUALLY trained,
+# then builds sidebar sliders ONLY for those features.
+# ════════════════════════════════════════════════════════════════
 @st.cache_resource(show_spinner=False)
 def load_artifacts():
-    """Load XGBoost model + preprocessing artefacts from disk."""
-    missing = [f for f in ["xgb_model.pkl","scaler.pkl","label_encoder.pkl","selected_features.pkl"]
-               if not os.path.exists(f)]
+    required = ["xgb_model.pkl", "scaler.pkl", "label_encoder.pkl", "selected_features.pkl"]
+    missing  = [f for f in required if not os.path.exists(f)]
     if missing:
         return None, None, None, None, missing
-    model           = joblib.load("xgb_model.pkl")
-    scaler          = joblib.load("scaler.pkl")
-    le              = joblib.load("label_encoder.pkl")
+    model             = joblib.load("xgb_model.pkl")
+    scaler            = joblib.load("scaler.pkl")
+    le                = joblib.load("label_encoder.pkl")
     selected_features = joblib.load("selected_features.pkl")
     return model, scaler, le, selected_features, []
 
 
-# ── Helper: matplotlib dark style ────────────────────────────
+# ════════════════════════════════════════════════════════════════
+# SHAP FIX
+# XGBoost >= 2.x stores base_score as a comma-separated list in
+# scientific notation e.g. '[1.93E-2,-2.51E-2,5.83E-3]'.
+# float() cannot parse this. Fix: save model to JSON, patch
+# base_score to scalar "0.5" (safe XGBoost default), reload,
+# then pass the patched booster to TreeExplainer.
+# ════════════════════════════════════════════════════════════════
+def get_shap_explainer(xgb_sklearn_model):
+    import xgboost as xgb
+
+    booster = xgb_sklearn_model.get_booster()
+
+    # Save to temp JSON file
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+        tmp_path = tmp.name
+    booster.save_model(tmp_path)
+
+    # Patch base_score in the JSON
+    with open(tmp_path, "r") as f:
+        model_json = json.load(f)
+    try:
+        model_json["learner"]["learner_model_param"]["base_score"] = "0.5"
+    except (KeyError, TypeError):
+        pass
+    with open(tmp_path, "w") as f:
+        json.dump(model_json, f)
+
+    # Reload patched booster
+    patched = xgb.Booster()
+    patched.load_model(tmp_path)
+    os.unlink(tmp_path)
+
+    return shap.TreeExplainer(patched)
+
+
+# ── Dark matplotlib helper ────────────────────────────────────
 def dark_fig(w=9, h=4):
     fig, ax = plt.subplots(figsize=(w, h))
     fig.patch.set_facecolor("#141728")
@@ -292,53 +316,104 @@ def dark_fig(w=9, h=4):
     return fig, ax
 
 
-# ── Feature meta ─────────────────────────────────────────────
-FEATURE_META = {
-    "sleep_duration":             ("🌙", "Durasi Tidur",             "jam/hari",   0.0, 12.0, 7.0),
-    "daily_screen_time":          ("📱", "Waktu Layar Harian",       "jam/hari",   0.0, 15.0, 4.0),
-    "study_load":                 ("📚", "Beban Belajar",             "0–10",       0.0, 10.0, 5.0),
-    "exam_anxiety":               ("😰", "Kecemasan Ujian",          "0–10",       0.0, 10.0, 5.0),
-    "academic_performance":       ("🎓", "Performa Akademik",         "0–10",       0.0, 10.0, 7.0),
-    "future_career_concerns":     ("🔮", "Kekhawatiran Karir",        "0–10",       0.0, 10.0, 6.0),
-    "teacher_student_relationship":("🤝","Hub. Guru–Murid",          "0–10",       0.0, 10.0, 8.0),
-    "social_support":             ("👥", "Dukungan Sosial",           "0–10",       0.0, 10.0, 7.0),
+# ── Feature display names & slider params ────────────────────
+DISPLAY_NAMES = {
+    "study_load":                   ("📚", "Beban Belajar"),
+    "academic_performance":         ("🎓", "Performa Akademik"),
+    "future_career_concerns":       ("🔮", "Kekhawatiran Karir"),
+    "teacher_student_relationship": ("🤝", "Hub. Guru-Murid"),
+    "social_support":               ("👥", "Dukungan Sosial"),
+    "sleep_duration":               ("🌙", "Durasi Tidur"),
+    "daily_screen_time":            ("📱", "Waktu Layar Harian"),
+    "exam_anxiety":                 ("😰", "Kecemasan Ujian"),
+    "academic_stress_index":        ("🧮", "Academic Stress Index"),
+    "screen_sleep_ratio":           ("⚖️",  "Screen/Sleep Ratio"),
+    "anxiety_level":                ("😟", "Tingkat Kecemasan"),
+    "self_esteem":                  ("💪", "Self-Esteem"),
+    "depression":                   ("💙", "Depresi"),
+    "mental_health_history":        ("🧠", "Riwayat Kes. Mental"),
+    "headache":                     ("🤕", "Sakit Kepala"),
+    "blood_pressure":               ("❤️",  "Tekanan Darah"),
+    "sleep_quality":                ("😴", "Kualitas Tidur"),
+    "breathing_problem":            ("🫁", "Masalah Pernapasan"),
+    "noise_level":                  ("🔊", "Tingkat Kebisingan"),
+    "living_conditions":            ("🏠", "Kondisi Tempat Tinggal"),
+    "safety":                       ("🛡️",  "Rasa Aman"),
+    "basic_needs":                  ("🍽️",  "Kebutuhan Dasar"),
+    "peer_pressure":                ("👫", "Tekanan Teman Sebaya"),
+    "extracurricular_activities":   ("🎨", "Aktivitas Ekskul"),
+    "bullying":                     ("⚠️",  "Bullying"),
+}
+
+# (min, max, default, step)
+SLIDER_PARAMS = {
+    "study_load":                   (0.0, 10.0,  5.0, 0.1),
+    "academic_performance":         (0.0, 10.0,  7.0, 0.1),
+    "future_career_concerns":       (0.0, 10.0,  5.0, 0.1),
+    "teacher_student_relationship": (0.0, 10.0,  5.0, 0.1),
+    "social_support":               (0.0, 10.0,  5.0, 0.1),
+    "sleep_duration":               (0.0, 12.0,  7.0, 0.5),
+    "daily_screen_time":            (0.0, 15.0,  4.0, 0.5),
+    "exam_anxiety":                 (0.0, 10.0,  5.0, 0.1),
+    "anxiety_level":                (0.0, 21.0, 10.0, 1.0),
+    "self_esteem":                  (0.0, 30.0, 15.0, 1.0),
+    "depression":                   (0.0, 27.0, 10.0, 1.0),
+    "mental_health_history":        (0.0,  1.0,  0.0, 1.0),
+    "headache":                     (0.0,  5.0,  2.0, 1.0),
+    "blood_pressure":               (1.0,  3.0,  2.0, 1.0),
+    "sleep_quality":                (0.0,  5.0,  3.0, 1.0),
+    "breathing_problem":            (0.0,  5.0,  2.0, 1.0),
+    "noise_level":                  (0.0,  5.0,  2.0, 1.0),
+    "living_conditions":            (0.0,  5.0,  3.0, 1.0),
+    "safety":                       (0.0,  5.0,  3.0, 1.0),
+    "basic_needs":                  (0.0,  5.0,  3.0, 1.0),
+    "peer_pressure":                (0.0,  5.0,  2.0, 1.0),
+    "extracurricular_activities":   (0.0,  5.0,  2.0, 1.0),
+    "bullying":                     (0.0,  5.0,  1.0, 1.0),
 }
 
 STRESS_INFO = {
     0: {
-        "label": "RENDAH",
-        "badge": "badge-low",
-        "color": "#43e8d8",
-        "emoji": "😊",
-        "desc":  "Tingkat stres Anda tergolong rendah. Kondisi psikologis, sosial, dan akademik Anda berada pada zona sehat. Pertahankan pola tidur, aktivitas sosial, dan manajemen waktu yang baik.",
-        "tips":  ["Pertahankan rutinitas tidur 7–8 jam/malam",
-                  "Jaga keseimbangan antara belajar dan istirahat",
-                  "Terus bangun dukungan sosial yang positif"],
+        "label": "RENDAH", "badge": "badge-low", "color": "#43e8d8", "emoji": "😊",
+        "desc": "Tingkat stres Anda tergolong <strong>rendah</strong>. Kondisi psikologis, "
+                "sosial, dan akademik Anda berada pada zona sehat.",
+        "tips": ["Pertahankan rutinitas tidur yang baik",
+                 "Jaga keseimbangan belajar dan istirahat",
+                 "Terus bangun dukungan sosial yang positif"],
     },
     1: {
-        "label": "SEDANG",
-        "badge": "badge-mid",
-        "color": "#f9c74f",
-        "emoji": "😐",
-        "desc":  "Tingkat stres Anda berada di level sedang. Ada beberapa faktor yang mulai menekan Anda. Segera lakukan intervensi ringan agar tidak meningkat ke level tinggi.",
-        "tips":  ["Evaluasi beban studi dan prioritaskan tugas",
-                  "Coba teknik relaksasi seperti meditasi atau journaling",
-                  "Bicarakan kekhawatiran kepada teman atau konselor"],
+        "label": "SEDANG", "badge": "badge-mid", "color": "#f9c74f", "emoji": "😐",
+        "desc": "Tingkat stres Anda berada di level <strong>sedang</strong>. Ada beberapa "
+                "faktor yang mulai menekan. Segera lakukan intervensi ringan.",
+        "tips": ["Evaluasi beban studi dan prioritaskan tugas",
+                 "Coba teknik relaksasi seperti meditasi",
+                 "Bicarakan kekhawatiran kepada konselor"],
     },
     2: {
-        "label": "TINGGI",
-        "badge": "badge-high",
-        "color": "#ff6b8a",
-        "emoji": "😟",
-        "desc":  "Tingkat stres Anda tergolong tinggi. Hal ini dapat berdampak negatif pada kesehatan fisik dan mental. Sangat disarankan untuk segera mencari bantuan profesional atau konselor kampus.",
-        "tips":  ["Konsultasikan kondisi Anda dengan konselor atau psikolog kampus",
-                  "Kurangi beban berlebih dan delegasikan tugas bila memungkinkan",
-                  "Prioritaskan tidur, olahraga, dan pola makan sehat"],
+        "label": "TINGGI", "badge": "badge-high", "color": "#ff6b8a", "emoji": "😟",
+        "desc": "Tingkat stres Anda tergolong <strong>tinggi</strong>. Sangat disarankan "
+                "untuk segera mencari bantuan profesional atau konselor kampus.",
+        "tips": ["Konsultasikan dengan psikolog atau konselor kampus",
+                 "Kurangi beban berlebih, delegasikan tugas",
+                 "Prioritaskan tidur, olahraga, dan pola makan sehat"],
     },
 }
 
+ENGINEERED_SET = {"academic_stress_index", "screen_sleep_ratio"}
 
-# ── Sidebar: input ────────────────────────────────────────────
+
+# ════════════════════════════════════════════════════════════════
+# LOAD ARTIFACTS
+# ════════════════════════════════════════════════════════════════
+model, scaler, le, selected_features, missing = load_artifacts()
+
+
+# ════════════════════════════════════════════════════════════════
+# SIDEBAR
+# Only shows sliders for features the model was actually trained on.
+# Engineered features (academic_stress_index, screen_sleep_ratio)
+# are computed automatically — no slider needed for those.
+# ════════════════════════════════════════════════════════════════
 with st.sidebar:
     st.markdown("""
     <div style="font-family:'Space Mono',monospace; font-size:1.1rem; font-weight:700;
@@ -350,20 +425,44 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
     inputs = {}
-    for key, (icon, label, unit, lo, hi, default) in FEATURE_META.items():
-        with st.expander(f"{icon} {label}", expanded=False):
-            st.caption(f"Satuan: **{unit}**")
-            inputs[key] = st.slider(
-                label, min_value=lo, max_value=hi,
-                value=default, step=0.5 if hi > 10 else 0.1,
-                label_visibility="collapsed", key=key
-            )
+
+    if selected_features:
+        slider_feats = [f for f in selected_features if f not in ENGINEERED_SET]
+        for feat in slider_feats:
+            icon, label = DISPLAY_NAMES.get(feat, ("📌", feat.replace("_", " ").title()))
+            lo, hi, default, step = SLIDER_PARAMS.get(feat, (0.0, 10.0, 5.0, 0.1))
+            with st.expander(f"{icon}  {label}", expanded=False):
+                inputs[feat] = st.slider(
+                    label, min_value=lo, max_value=hi,
+                    value=default, step=step,
+                    label_visibility="collapsed", key=f"s_{feat}"
+                )
+
+        # Preview auto-computed engineered features if used
+        has_eng = any(f in selected_features for f in ENGINEERED_SET)
+        if has_eng:
+            st.markdown("""
+            <div style="font-size:0.7rem; color:#8b8fad; letter-spacing:0.08em;
+                 text-transform:uppercase; margin:0.8rem 0 0.4rem;">
+            🛠 Dihitung Otomatis
+            </div>""", unsafe_allow_html=True)
+            if "academic_stress_index" in selected_features:
+                sl  = inputs.get("study_load", 5.0)
+                ea  = inputs.get("exam_anxiety", 5.0)
+                ap  = inputs.get("academic_performance", 7.0)
+                asi = 0.4*sl + 0.4*ea - 0.2*ap
+                st.caption(f"🧮 Acad. Stress Index: **{asi:.3f}**")
+            if "screen_sleep_ratio" in selected_features:
+                sd  = inputs.get("sleep_duration", 7.0)
+                dst = inputs.get("daily_screen_time", 4.0)
+                ssr = dst / (sd if sd != 0 else 0.1)
+                st.caption(f"⚖️  Screen/Sleep Ratio: **{ssr:.3f}**")
 
     st.markdown("<hr>", unsafe_allow_html=True)
     run_btn = st.button("🔍  Analisis Sekarang", use_container_width=True)
 
 
-# ── Hero ──────────────────────────────────────────────────────
+# ── Hero ─────────────────────────────────────────────────────
 st.markdown("""
 <div class="hero">
   <div class="hero-tag">Research Tool · CRISP-DM · XGBoost + SHAP</div>
@@ -375,23 +474,17 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-
-# ── Load model ────────────────────────────────────────────────
-model, scaler, le, selected_features, missing = load_artifacts()
-
 if missing:
     st.markdown(f"""
     <div class="warn-box">
-    ⚠️ <strong>Model belum ditemukan.</strong> File berikut tidak ada di direktori yang sama dengan <code>app.py</code>:<br>
+    ⚠️ <strong>File model tidak ditemukan:</strong>
     <code>{'</code>, <code>'.join(missing)}</code><br><br>
-    Silakan jalankan notebook pelatihan terlebih dahulu untuk menghasilkan file <code>.pkl</code>,
-    lalu letakkan semua file di folder yang sama dengan <code>app.py</code> sebelum menjalankan Streamlit.
-    </div>
-    """, unsafe_allow_html=True)
+    Jalankan notebook pelatihan terlebih dahulu, lalu letakkan semua file <code>.pkl</code>
+    di folder yang sama dengan <code>app.py</code>.
+    </div>""", unsafe_allow_html=True)
     st.stop()
 
 
-# ── About tab (always visible) ────────────────────────────────
 tab_pred, tab_about, tab_data = st.tabs([
     "🔬  PREDIKSI & SHAP",
     "📖  TENTANG SISTEM",
@@ -399,50 +492,48 @@ tab_pred, tab_about, tab_data = st.tabs([
 ])
 
 
-# ═══════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════
 # TAB 1 — PREDIKSI
-# ═══════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════
 with tab_pred:
 
     if not run_btn:
         st.markdown("""
         <div class="info-box">
-        💡 Atur parameter mahasiswa di <strong>sidebar kiri</strong>, lalu klik tombol
+        💡 Atur parameter mahasiswa di <strong>sidebar kiri</strong>, lalu klik
         <strong>"Analisis Sekarang"</strong> untuk melihat prediksi dan penjelasan SHAP.
-        </div>
-        """, unsafe_allow_html=True)
-
+        </div>""", unsafe_allow_html=True)
     else:
-        # ── Feature engineering (sama dengan notebook) ──────────
-        sleep_safe = inputs["sleep_duration"] if inputs["sleep_duration"] != 0 else 0.1
+        # ── Build full feature dict (including engineered cols) ──
+        all_inputs = dict(inputs)
 
-        engineered = {
-            **inputs,
-            "academic_stress_index": (
-                0.4 * inputs["study_load"] +
-                0.4 * inputs["exam_anxiety"] -
-                0.2 * inputs["academic_performance"]
-            ),
-            "screen_sleep_ratio": inputs["daily_screen_time"] / sleep_safe,
-        }
+        if "academic_stress_index" in selected_features:
+            sl  = all_inputs.get("study_load", 5.0)
+            ea  = all_inputs.get("exam_anxiety", 5.0)
+            ap  = all_inputs.get("academic_performance", 7.0)
+            all_inputs["academic_stress_index"] = 0.4*sl + 0.4*ea - 0.2*ap
 
-        df_input = pd.DataFrame([engineered])
-        df_input = df_input[selected_features]
+        if "screen_sleep_ratio" in selected_features:
+            sd  = all_inputs.get("sleep_duration", 7.0)
+            dst = all_inputs.get("daily_screen_time", 4.0)
+            all_inputs["screen_sleep_ratio"] = dst / (sd if sd != 0 else 0.1)
 
-        # ── Scale ────────────────────────────────────────────────
+        # DataFrame ordered exactly as the trained model expects
+        df_input = pd.DataFrame([all_inputs])[selected_features]
+
+        # Scale
         df_scaled = pd.DataFrame(
             scaler.transform(df_input),
             columns=selected_features
         )
 
-        # ── Predict ──────────────────────────────────────────────
+        # Predict
         pred_class = int(model.predict(df_scaled)[0])
         pred_proba = model.predict_proba(df_scaled)[0]
         info       = STRESS_INFO[pred_class]
 
-        # ── Section A: Stress Level Result ───────────────────────
+        # ── A: Hasil Prediksi ────────────────────────────────────
         st.markdown("### Hasil Prediksi")
-
         col_res, col_prob = st.columns([1, 1.4])
 
         with col_res:
@@ -457,154 +548,140 @@ with tab_pred:
               <div style="margin-top:1.2rem; font-size:0.84rem; color:#8b8fad; line-height:1.6;">
                 {info['desc']}
               </div>
-            </div>
-            """, unsafe_allow_html=True)
+            </div>""", unsafe_allow_html=True)
 
         with col_prob:
             st.markdown('<div class="card">', unsafe_allow_html=True)
             st.markdown('<div class="card-title">Distribusi Probabilitas</div>', unsafe_allow_html=True)
-
-            labels_map = {0: ("RENDAH",  "#43e8d8"),
-                          1: ("SEDANG",  "#f9c74f"),
-                          2: ("TINGGI",  "#ff6b8a")}
-
+            labels_map = {0: ("RENDAH","#43e8d8"), 1: ("SEDANG","#f9c74f"), 2: ("TINGGI","#ff6b8a")}
             for i, prob in enumerate(pred_proba):
                 lbl, clr = labels_map[i]
                 pct = prob * 100
                 st.markdown(f"""
                 <div class="prob-row">
                   <div class="prob-label">
-                    <span>{lbl}</span><span style="color:{clr};font-weight:600;">{pct:.1f}%</span>
+                    <span>{lbl}</span>
+                    <span style="color:{clr};font-weight:600;">{pct:.1f}%</span>
                   </div>
                   <div class="prob-bar-bg">
-                    <div class="prob-bar-fill"
-                         style="width:{pct:.1f}%; background:{clr};"></div>
+                    <div class="prob-bar-fill" style="width:{pct:.1f}%;background:{clr};"></div>
                   </div>
-                </div>
-                """, unsafe_allow_html=True)
+                </div>""", unsafe_allow_html=True)
 
-            # Probability pie
             fig_pie, ax_pie = plt.subplots(figsize=(4, 3))
             fig_pie.patch.set_facecolor("#141728")
             ax_pie.set_facecolor("#141728")
-            wedge_colors = ["#43e8d8","#f9c74f","#ff6b8a"]
-            wedges, texts, autotexts = ax_pie.pie(
-                pred_proba,
-                labels=["Rendah","Sedang","Tinggi"],
-                colors=wedge_colors,
-                autopct="%1.1f%%",
+            _, _, autotexts = ax_pie.pie(
+                pred_proba, labels=["Rendah","Sedang","Tinggi"],
+                colors=["#43e8d8","#f9c74f","#ff6b8a"], autopct="%1.1f%%",
                 startangle=90,
                 wedgeprops=dict(width=0.55, edgecolor="#141728", linewidth=2),
                 textprops={"color":"#8b8fad","fontsize":8},
             )
             for at in autotexts:
-                at.set_color("#e8eaf6")
-                at.set_fontsize(8)
+                at.set_color("#e8eaf6"); at.set_fontsize(8)
             ax_pie.set_title("Confidence Distribution", color="#e8eaf6", fontsize=9, pad=8)
             st.pyplot(fig_pie, use_container_width=False)
             plt.close(fig_pie)
-
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # ── Section B: Tips ─────────────────────────────────────
+        # ── Tips ────────────────────────────────────────────────
         st.markdown("#### 💡 Rekomendasi Tindakan")
-        tip_cols = st.columns(len(info["tips"]))
+        tip_cols = st.columns(3)
+        emojis = ["🌿","🧘","📋"]
         for i, (col, tip) in enumerate(zip(tip_cols, info["tips"])):
             col.markdown(f"""
-            <div class="card" style="text-align:center; height:100%;">
-              <div style="font-size:1.5rem; margin-bottom:0.5rem;">{'🌿🧘📋'[i]}</div>
+            <div class="card" style="text-align:center;">
+              <div style="font-size:1.5rem; margin-bottom:0.5rem;">{emojis[i]}</div>
               <div style="font-size:0.82rem; color:#8b8fad; line-height:1.5;">{tip}</div>
-            </div>
-            """, unsafe_allow_html=True)
+            </div>""", unsafe_allow_html=True)
 
         st.markdown("<hr>", unsafe_allow_html=True)
 
-        # ── Section C: Feature Summary ───────────────────────────
+        # ── B: Ringkasan Fitur ───────────────────────────────────
         st.markdown("### Input Anda — Ringkasan Fitur")
-
-        # Build summary from df_input (already ordered by selected_features) and df_scaled
-        # engineered dict holds ALL features including the two derived ones
         summary_rows = []
         for feat in selected_features:
-            raw_val = df_input[feat].iloc[0]      # from the DataFrame, guaranteed to exist
-            scaled_val = df_scaled[feat].iloc[0]
-            is_engineered = feat in ("academic_stress_index", "screen_sleep_ratio")
+            icon, label = DISPLAY_NAMES.get(feat, ("📌", feat.replace("_"," ").title()))
+            raw_val    = float(df_input[feat].iloc[0])
+            scaled_val = float(df_scaled[feat].iloc[0])
+            tipe       = "🛠 Engineered" if feat in ENGINEERED_SET else "📥 Input Langsung"
             summary_rows.append({
-                "Fitur": feat.replace("_", " ").title(),
-                "Tipe": "🛠 Engineered" if is_engineered else "📥 Input Langsung",
-                "Nilai Input (Raw)": round(float(raw_val), 4),
-                "Nilai Scaled": round(float(scaled_val), 4),
+                "": icon,
+                "Fitur":        label,
+                "Tipe":         tipe,
+                "Nilai Input":  round(raw_val, 4),
+                "Nilai Scaled": round(scaled_val, 4),
             })
-
-        df_summary = pd.DataFrame(summary_rows)
-        st.dataframe(df_summary, use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
 
         st.markdown("<hr>", unsafe_allow_html=True)
 
-        # ── Section D: SHAP ──────────────────────────────────────
+        # ── C: SHAP ──────────────────────────────────────────────
         st.markdown("### 🔍 Penjelasan SHAP (Explainable AI)")
         st.markdown("""
         <div class="info-box">
         SHAP (<em>SHapley Additive exPlanations</em>) mengukur kontribusi <strong>setiap fitur</strong>
-        terhadap prediksi. Nilai positif mendorong stres lebih tinggi; nilai negatif mendorong lebih rendah.
-        </div>
-        """, unsafe_allow_html=True)
+        terhadap prediksi. Nilai <span style="color:#ff6b8a;">positif</span> mendorong stres
+        lebih tinggi; nilai <span style="color:#43e8d8;">negatif</span> mendorong lebih rendah.
+        </div>""", unsafe_allow_html=True)
 
-        with st.spinner("Menghitung SHAP values…"):
+        with st.spinner("Menghitung SHAP values..."):
             try:
-                # ── FIX: XGBoost >= 2.x stores base_score as a bracketed
-                #    scientific-notation string that old SHAP cannot parse.
-                #    Patch the booster config to a plain float before building explainer.
-                import json, re as _re
-                try:
-                    _booster = model.get_booster()
-                    _cfg     = json.loads(_booster.save_config())
-                    _raw_bs  = _cfg["learner"]["learner_model_param"]["base_score"]
-                    _clean   = float(_re.sub(r"[\[\]]", "", _raw_bs).strip())
-                    _booster.set_param({"base_score": str(_clean)})
-                    model_for_shap = _booster
-                except Exception:
-                    model_for_shap = model
-
-                explainer   = shap.TreeExplainer(model_for_shap)
+                explainer   = get_shap_explainer(model)
                 shap_values = explainer.shap_values(df_scaled)
 
-                # shap_values shape: (n_samples, n_features, n_classes)  for XGBoost multi-class
-                # OR list of arrays — handle both
+                # ── Normalise shap_values to (n_samples, n_features, n_classes) ──
                 if isinstance(shap_values, list):
-                    sv_matrix = np.stack(shap_values, axis=-1)   # → (1, n_feat, n_class)
+                    # list of arrays shape (n_samples, n_features) — one per class
+                    sv_matrix = np.stack(shap_values, axis=-1)
                     ev_array  = np.array(explainer.expected_value)
+                elif isinstance(shap_values, np.ndarray):
+                    if shap_values.ndim == 3:
+                        sv_matrix = shap_values
+                        ev_array  = np.array(explainer.expected_value)
+                    elif shap_values.ndim == 2:
+                        sv_matrix = shap_values[:, :, np.newaxis]
+                        ev_val    = explainer.expected_value
+                        ev_array  = np.array([ev_val] if np.isscalar(ev_val) else ev_val)
+                    else:
+                        raise ValueError(f"Unexpected shap_values shape: {shap_values.shape}")
                 else:
-                    # numpy array (1, n_feat, n_class)
-                    sv_matrix = shap_values
-                    ev_array  = np.array(explainer.expected_value)
+                    raise TypeError(f"Unexpected shap_values type: {type(shap_values)}")
 
-                shap_sample    = sv_matrix[0, :, pred_class]   # (n_feat,)
-                expected_value = float(ev_array[pred_class])
+                n_classes  = sv_matrix.shape[2]
+                safe_class = min(pred_class, n_classes - 1)
 
-                # ── D1: Bar chart of SHAP ─────────────────────────
+                shap_sample    = sv_matrix[0, :, safe_class]
+                ev_val         = explainer.expected_value
+                if hasattr(ev_val, "__len__"):
+                    expected_value = float(ev_val[safe_class])
+                else:
+                    expected_value = float(ev_val)
+
+                feat_names    = selected_features
+                sorted_idx    = np.argsort(np.abs(shap_sample))[::-1]
+                sorted_vals   = shap_sample[sorted_idx]
+                sorted_labels = [DISPLAY_NAMES.get(feat_names[i], ("",""))[1]
+                                 for i in sorted_idx]
+                colors_bar    = ["#ff6b8a" if v > 0 else "#43e8d8" for v in sorted_vals]
+
+                # ── C1: Horizontal bar chart ──────────────────────
                 st.markdown("#### Kontribusi Fitur — Sample Ini")
-                feat_names  = selected_features
-                sorted_idx  = np.argsort(np.abs(shap_sample))[::-1]
-                sorted_vals = shap_sample[sorted_idx]
-                sorted_feat = [feat_names[i].replace("_"," ").title() for i in sorted_idx]
-                colors_bar  = ["#ff6b8a" if v > 0 else "#43e8d8" for v in sorted_vals]
-
-                fig_bar, ax_bar = dark_fig(w=9, h=4)
-                bars = ax_bar.barh(sorted_feat[::-1], sorted_vals[::-1],
+                bar_h = max(3.5, len(feat_names) * 0.55)
+                fig_bar, ax_bar = dark_fig(w=9, h=bar_h)
+                bars = ax_bar.barh(sorted_labels[::-1], sorted_vals[::-1],
                                    color=colors_bar[::-1], height=0.6,
                                    edgecolor="#141728", linewidth=0.5)
                 ax_bar.axvline(0, color="#252840", linewidth=1)
-                ax_bar.set_xlabel("SHAP Value (impact on model output)", color="#8b8fad", fontsize=8)
-                ax_bar.set_title(f"SHAP — Kelas Prediksi: {info['label']}", color="#e8eaf6", fontsize=10)
-
-                # Value labels
+                ax_bar.set_xlabel("SHAP Value", color="#8b8fad", fontsize=8)
+                ax_bar.set_title(f"SHAP — Kelas Prediksi: {info['label']}",
+                                 color="#e8eaf6", fontsize=10)
                 for bar, val in zip(bars, sorted_vals[::-1]):
                     ax_bar.text(
-                        val + (0.01 if val >= 0 else -0.01),
+                        val + (0.003 if val >= 0 else -0.003),
                         bar.get_y() + bar.get_height()/2,
-                        f"{val:+.3f}",
-                        va="center",
+                        f"{val:+.4f}", va="center",
                         ha="left" if val >= 0 else "right",
                         color="#e8eaf6", fontsize=7,
                     )
@@ -612,99 +689,92 @@ with tab_pred:
                 st.pyplot(fig_bar, use_container_width=True)
                 plt.close(fig_bar)
 
-                # ── D2: Force-plot style waterfall ───────────────
+                # ── C2: Waterfall ─────────────────────────────────
                 st.markdown("#### Waterfall — Bagaimana Prediksi Terbentuk")
-
                 fig_wf, ax_wf = dark_fig(w=10, h=4.5)
-                running = expected_value
-                positions = [running]
-                for v in shap_sample[sorted_idx]:
-                    running += v
-                    positions.append(running)
-
-                x_labels = ["E[f(X)]"] + [feat_names[i].replace("_"," ").title() for i in sorted_idx] + ["f(X)"]
-                bottoms  = []
-                heights  = []
-                bar_colors = []
-
+                bottoms, heights, bar_colors = [], [], []
                 cur = expected_value
                 for v in shap_sample[sorted_idx]:
                     if v >= 0:
-                        bottoms.append(cur)
-                        heights.append(v)
+                        bottoms.append(cur); heights.append(v)
                         bar_colors.append("#ff6b8a")
                     else:
-                        bottoms.append(cur + v)
-                        heights.append(-v)
+                        bottoms.append(cur+v); heights.append(-v)
                         bar_colors.append("#43e8d8")
                     cur += v
 
                 x_pos = np.arange(len(heights))
-                ax_wf.bar(x_pos, heights, bottom=bottoms, color=bar_colors, width=0.55,
-                          edgecolor="#141728", linewidth=0.5)
-
-                # Baseline dot
-                ax_wf.axhline(expected_value, color="#f9c74f", linewidth=1, linestyle="--", alpha=0.6)
+                ax_wf.bar(x_pos, heights, bottom=bottoms, color=bar_colors,
+                          width=0.55, edgecolor="#141728", linewidth=0.5)
+                ax_wf.axhline(expected_value, color="#f9c74f", linewidth=1,
+                              linestyle="--", alpha=0.6)
                 ax_wf.set_xticks(x_pos)
-                short_labels = [feat_names[i].replace("_"," ").replace(" ","\\n").title() for i in sorted_idx]
-                ax_wf.set_xticklabels([l.replace("_"," ").title() for l in
-                                        [feat_names[i] for i in sorted_idx]],
-                                       rotation=30, ha="right", fontsize=7, color="#8b8fad")
+                ax_wf.set_xticklabels(sorted_labels, rotation=30, ha="right",
+                                      fontsize=7, color="#8b8fad")
                 ax_wf.set_ylabel("Model Output (log-odds)", color="#8b8fad", fontsize=8)
-                ax_wf.set_title("Waterfall: Kumulatif Kontribusi SHAP", color="#e8eaf6", fontsize=10)
-
-                red_patch  = mpatches.Patch(color="#ff6b8a", label="Mendorong STRES NAIK")
-                blue_patch = mpatches.Patch(color="#43e8d8", label="Mendorong STRES TURUN")
-                yel_line   = plt.Line2D([0],[0], color="#f9c74f", linestyle="--", label="Baseline E[f(X)]")
-                ax_wf.legend(handles=[red_patch, blue_patch, yel_line],
-                             facecolor="#141728", edgecolor="#252840",
-                             labelcolor="#8b8fad", fontsize=7)
+                ax_wf.set_title("Waterfall: Kumulatif Kontribusi SHAP",
+                                color="#e8eaf6", fontsize=10)
+                ax_wf.legend(
+                    handles=[
+                        mpatches.Patch(color="#ff6b8a", label="Mendorong STRES NAIK"),
+                        mpatches.Patch(color="#43e8d8", label="Mendorong STRES TURUN"),
+                        plt.Line2D([0],[0], color="#f9c74f", linestyle="--",
+                                   label="Baseline E[f(X)]"),
+                    ],
+                    facecolor="#141728", edgecolor="#252840",
+                    labelcolor="#8b8fad", fontsize=7,
+                )
                 plt.tight_layout()
                 st.pyplot(fig_wf, use_container_width=True)
                 plt.close(fig_wf)
 
-                # ── D3: SHAP table ────────────────────────────────
+                # ── C3: SHAP Table ────────────────────────────────
                 st.markdown("#### Tabel Detail SHAP Values")
-                shap_df = pd.DataFrame({
-                    "Fitur": [feat_names[i].replace("_"," ").title() for i in sorted_idx],
-                    "Nilai Input":  [round(engineered.get(feat_names[i], 0), 3) for i in sorted_idx],
-                    "SHAP Value":   [round(shap_sample[i], 4)   for i in sorted_idx],
-                    "Arah":         ["🔴 Naik" if shap_sample[i] > 0 else "🔵 Turun"
-                                     for i in sorted_idx],
-                    "Dampak":       ["Tinggi" if abs(shap_sample[i]) > np.percentile(np.abs(shap_sample),66)
-                                     else ("Sedang" if abs(shap_sample[i]) > np.percentile(np.abs(shap_sample),33)
-                                           else "Rendah")
-                                     for i in sorted_idx],
-                })
-                st.dataframe(shap_df, use_container_width=True, hide_index=True)
+                pct33, pct66 = np.percentile(np.abs(shap_sample), [33, 66])
+                shap_rows = []
+                for i in sorted_idx:
+                    icon, label = DISPLAY_NAMES.get(feat_names[i],
+                                                    ("📌", feat_names[i]))
+                    sv     = shap_sample[i]
+                    dampak = ("Tinggi" if abs(sv) > pct66 else
+                              "Sedang" if abs(sv) > pct33 else "Rendah")
+                    shap_rows.append({
+                        "": icon,
+                        "Fitur":       label,
+                        "Nilai Input": round(float(df_input[feat_names[i]].iloc[0]), 4),
+                        "SHAP Value":  round(float(sv), 5),
+                        "Arah":        "🔴 Naik" if sv > 0 else "🔵 Turun",
+                        "Dampak":      dampak,
+                    })
+                st.dataframe(pd.DataFrame(shap_rows),
+                             use_container_width=True, hide_index=True)
 
-                # ── D4: Narasi ────────────────────────────────────
-                top_pos = [feat_names[sorted_idx[i]].replace("_"," ") for i in range(len(sorted_idx))
+                # ── C4: Narasi otomatis ───────────────────────────
+                top_pos = [DISPLAY_NAMES.get(feat_names[sorted_idx[i]], ("",""))[1]
+                           for i in range(len(sorted_idx))
                            if shap_sample[sorted_idx[i]] > 0][:2]
-                top_neg = [feat_names[sorted_idx[i]].replace("_"," ") for i in range(len(sorted_idx))
+                top_neg = [DISPLAY_NAMES.get(feat_names[sorted_idx[i]], ("",""))[1]
+                           for i in range(len(sorted_idx))
                            if shap_sample[sorted_idx[i]] < 0][:2]
-
                 st.markdown(f"""
                 <div class="info-box">
                 📝 <strong>Interpretasi Otomatis:</strong><br>
-                Faktor yang paling <span style="color:#ff6b8a;">meningkatkan</span> prediksi stres Anda:
+                Faktor yang paling <span style="color:#ff6b8a;">meningkatkan</span> risiko stres:
                 <strong>{", ".join(top_pos) if top_pos else "–"}</strong>.<br>
-                Faktor yang paling <span style="color:#43e8d8;">menurunkan</span> prediksi stres Anda:
+                Faktor yang paling <span style="color:#43e8d8;">menurunkan</span> risiko stres:
                 <strong>{", ".join(top_neg) if top_neg else "–"}</strong>.
-                </div>
-                """, unsafe_allow_html=True)
+                </div>""", unsafe_allow_html=True)
 
             except Exception as e:
                 st.error(f"SHAP error: {e}")
                 st.exception(e)
 
 
-# ═══════════════════════════════════════════════════════════════
-# TAB 2 — ABOUT
-# ═══════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════
+# TAB 2 — TENTANG SISTEM
+# ════════════════════════════════════════════════════════════════
 with tab_about:
     c1, c2 = st.columns(2)
-
     with c1:
         st.markdown("""
         <div class="card">
@@ -712,190 +782,144 @@ with tab_about:
           <p style="font-size:0.88rem; color:#8b8fad; line-height:1.7;">
             <strong style="color:#e8eaf6;">StressScope</strong> adalah aplikasi prediksi tingkat stres
             mahasiswa yang dibangun menggunakan kerangka kerja <strong style="color:#6c63ff;">CRISP-DM</strong>
-            dan tiga algoritma machine learning: <em>Random Forest, XGBoost, dan LightGBM</em>.
+            dan tiga algoritma: <em>Random Forest, XGBoost, LightGBM</em>.
           </p>
           <p style="font-size:0.88rem; color:#8b8fad; line-height:1.7;">
-            Model yang digunakan untuk prediksi real-time adalah <strong style="color:#6c63ff;">XGBoost</strong>,
-            dipilih berdasarkan perbandingan metrik Accuracy, Macro F1-Score, dan ROC-AUC pada
-            evaluasi 5-fold cross-validation.
-          </p>
-          <p style="font-size:0.88rem; color:#8b8fad; line-height:1.7;">
-            Explainability disediakan oleh <strong style="color:#6c63ff;">SHAP (TreeExplainer)</strong>,
-            yang memungkinkan interpretasi lokal (per sampel) maupun global (seluruh dataset).
+            Model aktif: <strong style="color:#6c63ff;">XGBoost</strong> — dipilih berdasarkan
+            Accuracy, Macro F1, dan ROC-AUC pada evaluasi 5-fold cross-validation.
+            Explainability via <strong style="color:#6c63ff;">SHAP TreeExplainer</strong>.
           </p>
         </div>
-        """, unsafe_allow_html=True)
-
-        st.markdown("""
         <div class="card">
           <div class="card-title">Pipeline CRISP-DM</div>
-          <div style="font-size:0.83rem; color:#8b8fad; line-height:2;">
-            1️⃣ &nbsp;<strong style="color:#e8eaf6;">Business Understanding</strong> — Definisi tujuan prediksi<br>
-            2️⃣ &nbsp;<strong style="color:#e8eaf6;">Data Understanding</strong> — EDA & visualisasi distribusi<br>
-            3️⃣ &nbsp;<strong style="color:#e8eaf6;">Data Preparation</strong> — Imputasi, engineering, scaling<br>
-            4️⃣ &nbsp;<strong style="color:#e8eaf6;">Modeling</strong> — RF · XGBoost · LightGBM + CV<br>
-            5️⃣ &nbsp;<strong style="color:#e8eaf6;">Evaluation</strong> — Accuracy · Macro F1 · ROC-AUC<br>
-            6️⃣ &nbsp;<strong style="color:#e8eaf6;">Deployment</strong> — Streamlit + SHAP Explainability
+          <div style="font-size:0.83rem; color:#8b8fad; line-height:2.2;">
+            1️⃣ <strong style="color:#e8eaf6;">Business Understanding</strong><br>
+            2️⃣ <strong style="color:#e8eaf6;">Data Understanding</strong> — EDA &amp; distribusi<br>
+            3️⃣ <strong style="color:#e8eaf6;">Data Preparation</strong> — Imputasi &amp; scaling<br>
+            4️⃣ <strong style="color:#e8eaf6;">Modeling</strong> — RF · XGBoost · LightGBM<br>
+            5️⃣ <strong style="color:#e8eaf6;">Evaluation</strong> — Accuracy · F1 · ROC-AUC<br>
+            6️⃣ <strong style="color:#e8eaf6;">Deployment</strong> — Streamlit + SHAP
           </div>
         </div>
         """, unsafe_allow_html=True)
 
     with c2:
-        st.markdown("""
+        n_feats = len(selected_features) if selected_features else "?"
+        feat_badges = "".join(
+            f'<code style="background:#0d0f1a;padding:0.15rem 0.45rem;'
+            f'border-radius:4px;font-size:0.73rem;margin:2px;display:inline-block;">{f}</code> '
+            for f in (selected_features or [])
+        )
+        st.markdown(f"""
         <div class="card">
-          <div class="card-title">Feature Engineering</div>
-          <p style="font-size:0.85rem; color:#8b8fad; line-height:1.6; margin-bottom:0.8rem;">
-            Dua fitur baru dibuat dari fitur asli:
+          <div class="card-title">Fitur Model Aktif ({n_feats} fitur)</div>
+          <p style="font-size:0.84rem; color:#8b8fad; line-height:1.6; margin-bottom:0.6rem;">
+            Sidebar hanya menampilkan slider untuk fitur yang benar-benar ada di dataset dan
+            digunakan saat pelatihan:
           </p>
-          <div style="background:#0d0f1a; border-radius:8px; padding:1rem;
-               font-family:'Space Mono',monospace; font-size:0.75rem; color:#43e8d8;
-               line-height:1.8;">
-            academic_stress_index =<br>
-            &nbsp;&nbsp;0.4 × study_load<br>
-            &nbsp;&nbsp;+ 0.4 × exam_anxiety<br>
-            &nbsp;&nbsp;− 0.2 × academic_performance<br><br>
-            screen_sleep_ratio =<br>
-            &nbsp;&nbsp;daily_screen_time / sleep_duration
-          </div>
+          <div>{feat_badges}</div>
         </div>
-        """, unsafe_allow_html=True)
-
-        st.markdown("""
         <div class="card">
-          <div class="card-title">Label Kelas Target</div>
-          <div style="font-size:0.85rem; line-height:2.2;">
-            <span class="badge badge-low">0 — RENDAH</span>
-            &nbsp;Stres minimal, kondisi sehat<br>
-            <span class="badge badge-mid">1 — SEDANG</span>
-            &nbsp;Tekanan mulai terasa, perlu perhatian<br>
-            <span class="badge badge-high">2 — TINGGI</span>
-            &nbsp;Stres berat, intervensi direkomendasikan
+          <div class="card-title">Label Kelas</div>
+          <div style="font-size:0.85rem; line-height:2.4;">
+            <span class="badge badge-low">0 — RENDAH</span>&nbsp;Stres minimal<br>
+            <span class="badge badge-mid">1 — SEDANG</span>&nbsp;Mulai menekan<br>
+            <span class="badge badge-high">2 — TINGGI</span>&nbsp;Perlu intervensi
           </div>
         </div>
-        """, unsafe_allow_html=True)
-
-        st.markdown("""
         <div class="card">
           <div class="card-title">Disclaimer</div>
           <p style="font-size:0.82rem; color:#8b8fad; line-height:1.6;">
-            ⚠️ Aplikasi ini bersifat <strong style="color:#f9c74f;">akademik dan informatif</strong>.
-            Hasil prediksi <strong>bukan</strong> diagnosis medis atau psikologis resmi.
-            Jika Anda mengalami tekanan berat, segera konsultasikan dengan
-            <strong style="color:#e8eaf6;">profesional kesehatan mental</strong> atau konselor kampus.
+            ⚠️ Aplikasi ini bersifat <strong style="color:#f9c74f;">akademik</strong>.
+            Hasil bukan diagnosis resmi. Untuk kondisi berat, konsultasikan dengan
+            <strong style="color:#e8eaf6;">profesional kesehatan mental</strong>.
           </p>
         </div>
         """, unsafe_allow_html=True)
 
 
-# ═══════════════════════════════════════════════════════════════
-# TAB 3 — DATA GUIDE
-# ═══════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════
+# TAB 3 — PANDUAN FITUR
+# ════════════════════════════════════════════════════════════════
 with tab_data:
-    st.markdown("### 📋 Panduan Fitur Input")
+    st.markdown("### 📋 Fitur yang Digunakan Model")
+    if selected_features:
+        guide_rows = []
+        for feat in selected_features:
+            icon, label = DISPLAY_NAMES.get(feat, ("📌", feat.replace("_"," ").title()))
+            lo, hi, default, _ = SLIDER_PARAMS.get(feat, (0.0, 10.0, 5.0, 0.1))
+            guide_rows.append({
+                "": icon, "Fitur": label, "Kode Kolom": feat,
+                "Min": lo, "Max": hi, "Default": default,
+                "Tipe": "🛠 Engineered" if feat in ENGINEERED_SET else "📥 Input Langsung",
+            })
+        st.dataframe(pd.DataFrame(guide_rows), use_container_width=True, hide_index=True)
+    else:
+        st.info("Muat model terlebih dahulu untuk melihat panduan fitur.")
 
-    guide_data = []
-    for key, (icon, label, unit, lo, hi, default) in FEATURE_META.items():
-        guide_data.append({
-            "Ikon": icon,
-            "Nama Fitur": label,
-            "Kode Kolom":  key,
-            "Satuan / Skala": unit,
-            "Min": lo,
-            "Max": hi,
-            "Default": default,
-        })
-    st.dataframe(pd.DataFrame(guide_data), use_container_width=True, hide_index=True)
-
-    st.markdown("### 🛠️ Fitur Rekayasa (Engineered)")
-    st.markdown("""
-    <div class="card">
-      <div class="card-title">academic_stress_index</div>
-      <p style="font-size:0.85rem; color:#8b8fad; line-height:1.6;">
-        Indeks komposit yang menggabungkan beban belajar, kecemasan ujian, dan performa akademik.
-        Semakin tinggi beban dan kecemasan — semakin tinggi indeks ini. Performa akademik yang baik
-        menurunkan indeks. Dihitung otomatis dari input Anda.
-      </p>
-    </div>
-    <div class="card">
-      <div class="card-title">screen_sleep_ratio</div>
-      <p style="font-size:0.85rem; color:#8b8fad; line-height:1.6;">
-        Rasio waktu layar terhadap durasi tidur. Nilai > 1 menunjukkan bahwa seseorang menghabiskan
-        lebih banyak waktu di depan layar daripada tidur — kondisi yang umumnya berkorelasi dengan
-        stres lebih tinggi. Dihitung otomatis dari input Anda.
-      </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ── Quick EDA from CSV (if available) ────────────────────
+    st.markdown("### 📈 Eksplorasi Dataset")
     csv_path = "StressLevelDataset.csv"
     if os.path.exists(csv_path):
-        st.markdown("### 📈 Eksplorasi Dataset")
         df_raw = pd.read_csv(csv_path)
-
         col_a, col_b = st.columns(2)
         with col_a:
             st.markdown(f"""
             <div class="metric-row">
               <div class="metric-tile">
                 <div class="val" style="color:#6c63ff;">{len(df_raw):,}</div>
-                <div class="lbl">Total Sampel</div>
+                <div class="lbl">Sampel</div>
               </div>
               <div class="metric-tile">
                 <div class="val" style="color:#43e8d8;">{df_raw.shape[1]}</div>
-                <div class="lbl">Fitur Asli</div>
+                <div class="lbl">Kolom</div>
               </div>
               <div class="metric-tile">
                 <div class="val" style="color:#ff6b8a;">{df_raw['stress_level'].nunique()}</div>
-                <div class="lbl">Kelas Target</div>
+                <div class="lbl">Kelas</div>
               </div>
-            </div>
-            """, unsafe_allow_html=True)
+            </div>""", unsafe_allow_html=True)
 
-            # Distribution bar
             dist = df_raw["stress_level"].value_counts().sort_index()
-            fig_dist, ax_dist = dark_fig(w=5, h=3)
-            ax_dist.bar(["Rendah","Sedang","Tinggi"], dist.values,
-                        color=["#43e8d8","#f9c74f","#ff6b8a"],
-                        width=0.5, edgecolor="#141728")
-            ax_dist.set_title("Distribusi Kelas Stres", color="#e8eaf6", fontsize=9)
-            ax_dist.set_ylabel("Jumlah", color="#8b8fad", fontsize=8)
-            st.pyplot(fig_dist, use_container_width=True)
-            plt.close(fig_dist)
+            fig_d, ax_d = dark_fig(5, 3)
+            ax_d.bar(["Rendah","Sedang","Tinggi"], dist.values,
+                     color=["#43e8d8","#f9c74f","#ff6b8a"],
+                     width=0.5, edgecolor="#141728")
+            ax_d.set_title("Distribusi Kelas Stres", color="#e8eaf6", fontsize=9)
+            ax_d.set_ylabel("Jumlah", color="#8b8fad", fontsize=8)
+            st.pyplot(fig_d, use_container_width=True)
+            plt.close(fig_d)
 
         with col_b:
-            # Correlation heatmap (subset)
-            subset_cols = ["anxiety_level","depression","sleep_quality",
-                           "study_load","social_support","stress_level"]
-            subset_cols = [c for c in subset_cols if c in df_raw.columns]
-            corr_sub = df_raw[subset_cols].corr()
-            fig_hm, ax_hm = plt.subplots(figsize=(5, 4))
-            fig_hm.patch.set_facecolor("#141728")
-            ax_hm.set_facecolor("#141728")
-            sns.heatmap(corr_sub, ax=ax_hm, cmap="coolwarm", center=0,
-                        annot=True, fmt=".2f", annot_kws={"size":7},
-                        linewidths=0.5, linecolor="#252840",
-                        cbar_kws={"shrink":0.75})
-            ax_hm.tick_params(colors="#8b8fad", labelsize=7)
-            ax_hm.set_title("Heatmap Korelasi (Subset)", color="#e8eaf6", fontsize=9)
-            st.pyplot(fig_hm, use_container_width=True)
-            plt.close(fig_hm)
+            num_cols = df_raw.select_dtypes(include=np.number).columns.tolist()
+            subset   = [c for c in
+                        ["anxiety_level","depression","sleep_quality",
+                         "study_load","social_support","stress_level"]
+                        if c in num_cols][:6]
+            if subset:
+                fig_h, ax_h = plt.subplots(figsize=(5, 4))
+                fig_h.patch.set_facecolor("#141728")
+                ax_h.set_facecolor("#141728")
+                sns.heatmap(df_raw[subset].corr(), ax=ax_h, cmap="coolwarm", center=0,
+                            annot=True, fmt=".2f", annot_kws={"size":7},
+                            linewidths=0.5, linecolor="#252840",
+                            cbar_kws={"shrink":0.75})
+                ax_h.tick_params(colors="#8b8fad", labelsize=7)
+                ax_h.set_title("Heatmap Korelasi (Subset)", color="#e8eaf6", fontsize=9)
+                st.pyplot(fig_h, use_container_width=True)
+                plt.close(fig_h)
     else:
         st.markdown("""
         <div class="info-box">
         Letakkan <code>StressLevelDataset.csv</code> di folder yang sama dengan <code>app.py</code>
-        untuk melihat eksplorasi dataset di sini.
-        </div>
-        """, unsafe_allow_html=True)
+        untuk melihat eksplorasi dataset.
+        </div>""", unsafe_allow_html=True)
 
 
 # ── Footer ────────────────────────────────────────────────────
-st.markdown("<br>", unsafe_allow_html=True)
-st.markdown("""
-<div style="text-align:center; padding:1.5rem;
-     border-top:1px solid #252840; margin-top:2rem;">
-  <span style="font-family:'Space Mono',monospace; font-size:0.7rem;
-       color:#3d4070; letter-spacing:0.12em;">
+st.markdown("""<br>
+<div style="text-align:center;padding:1.5rem;border-top:1px solid #252840;margin-top:2rem;">
+  <span style="font-family:'Space Mono',monospace;font-size:0.7rem;color:#3d4070;
+       letter-spacing:0.12em;">
     STRESSSCOPE · MACHINE LEARNING · CRISP-DM · SHAP EXPLAINABILITY
   </span>
-</div>
-""", unsafe_allow_html=True)
+</div>""", unsafe_allow_html=True)
