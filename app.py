@@ -1,31 +1,25 @@
 # app.py  –  Aplikasi Prediksi Tingkat Stres Mahasiswa
 #
 # ═══════════════════════════════════════════════════════════
-# RINGKASAN TIGA BUG YANG DIPERBAIKI:
+# ROOT CAUSE FINAL:
+#   XGBoost 3.x pada model multiclass SELALU mengkonversi
+#   base_score ke array per-kelas, contoh '[5E-1,5E-1,5E-1]'.
+#   Ini terjadi bahkan setelah kita patch JSON dan load_model()
+#   ulang — XGBoost tetap expand scalar ke array saat disimpan.
+#   SHAP 0.47.0 masih mencoba float(base_score) → ValueError.
 #
-# BUG 1 – base_score array (root cause awal)
-#   XGBoost >=2.0 menyimpan base_score sebagai array per kelas
-#   ("[1.93E-2,-2.51E-2,5.84E-3]") untuk multiclass.
-#   SHAP mencoba float(base_score) → ValueError.
-#   FIX: Patch via JSON save/load (bukan load_config() yang diabaikan XGBoost).
-#
-# BUG 2 – patch_xgb_for_shap() versi lama tidak efektif
-#   Versi sebelumnya memakai booster.load_config(json.dumps(cfg)).
-#   Ternyata XGBoost 3.x mengabaikan perubahan base_score via load_config()
-#   karena dibaca ulang dari format UBJ binary (save_raw), bukan dari config.
-#   FIX: Simpan booster ke file JSON → patch → load_model() ulang.
-#
-# BUG 3 – SHAP 0.46.0 crash saat import di Python 3.14
-#   shap/plots/colors/_colorconv.py menggunakan np.floating yang
-#   dihapus di NumPy 2.x, sehingga crash saat import shap.
-#   FIX: Upgrade ke shap>=0.47.0 (sudah diperbaiki mulai versi itu).
+# SOLUSI FINAL:
+#   Monkey-patch builtins.float sementara selama XGBTreeModelLoader
+#   berjalan, sehingga float('[5E-1,5E-1,5E-1]') mengembalikan
+#   mean dari array (0.5) alih-alih raise ValueError.
+#   Setelah __init__ selesai, builtins.float dikembalikan normal.
 # ═══════════════════════════════════════════════════════════
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import json
+import builtins
 import ast
 import matplotlib.pyplot as plt
 
@@ -46,50 +40,62 @@ STRESS_LABEL = {0: "🟢 Rendah", 1: "🟡 Sedang", 2: "🔴 Tinggi"}
 
 
 # ──────────────────────────────────────────────
-# [FIX BUG 1 & 2] Patch XGBoost base_score via JSON save/load
+# [FIX FINAL] Patch SHAP agar bisa baca base_score array
 # ──────────────────────────────────────────────
+def patch_shap_for_xgb_multiclass():
+    """
+    XGBoost 3.x multiclass SELALU menyimpan base_score sebagai array
+    per-kelas, misal '[5E-1,5E-1,5E-1]' atau '[1.9E-2,-2.5E-2,5.8E-3]'.
+    Tidak ada cara untuk memaksanya menjadi scalar — setiap kali load_model()
+    dipanggil, XGBoost akan expand scalar kembali ke array.
+
+    SHAP 0.47.0 memanggil float(learner_model_param['base_score'])
+    di dalam XGBTreeModelLoader.__init__(), yang gagal untuk string array.
+
+    Fix: patch XGBTreeModelLoader.__init__() agar sementara mengganti
+    builtins.float dengan versi yang bisa menangani string array.
+    Setelah __init__ selesai, builtins.float dikembalikan ke aslinya.
+    """
+    import shap.explainers._tree as _tree_mod
+
+    _OrigLoader = _tree_mod.XGBTreeModelLoader
+    _orig_init  = _OrigLoader.__init__
+    _orig_float = builtins.float
+
+    if getattr(_OrigLoader, "_patched_for_multiclass", False):
+        return  # sudah dipatch sebelumnya, skip
+
+    class _ArrayAwareFloat(float):
+        """float subclass yang bisa parse string array dari XGBoost multiclass."""
+        def __new__(cls, x=0):
+            if isinstance(x, str):
+                try:
+                    return _orig_float.__new__(cls, x)
+                except (ValueError, TypeError):
+                    try:
+                        arr = ast.literal_eval(x)
+                        return _orig_float.__new__(cls, np.mean(arr))
+                    except Exception:
+                        return _orig_float.__new__(cls, 0.5)
+            return _orig_float.__new__(cls, x)
+
+    def _patched_init(self, xgb_model):
+        builtins.float = _ArrayAwareFloat
+        try:
+            _orig_init(self, xgb_model)
+        finally:
+            builtins.float = _orig_float  # SELALU kembalikan ke aslinya
+
+    _OrigLoader.__init__          = _patched_init
+    _OrigLoader._patched_for_multiclass = True
+
+
 @st.cache_resource
-def get_patched_model_and_explainer(_model):
-    """
-    Memperbaiki inkompatibilitas XGBoost >=2.0 dengan SHAP.
-
-    Root cause:
-      XGBoost >=2.0 pada multiclass menyimpan base_score sebagai
-      array per kelas, misal '[1.93E-2,-2.51E-2,5.84E-3]'.
-      SHAP membacanya dari format UBJ binary (save_raw) lalu
-      melakukan float(base_score) → ValueError.
-
-    Mengapa load_config() tidak bisa fix ini:
-      XGBoost 3.x mengabaikan perubahan base_score yang ditulis
-      ulang via load_config(), karena nilai aslinya tetap terbaca
-      dari binary UBJ saat SHAP memanggil save_raw().
-
-    Solusi: simpan ke JSON (format teks) → patch → load_model().
-    """
-    import xgboost as xgb
+def get_shap_explainer(_model):
+    """Buat SHAP TreeExplainer dengan patch aktif."""
     import shap
-
-    booster = _model.get_booster()
-
-    # Periksa apakah base_score perlu dipatch
-    booster.save_model("/tmp/_xgb_check.json")
-    with open("/tmp/_xgb_check.json") as f:
-        jmodel = json.load(f)
-
-    raw_bs = jmodel["learner"]["learner_model_param"]["base_score"]
-    try:
-        float(raw_bs)  # sudah scalar → tidak perlu patch
-        model_for_shap = _model
-    except (ValueError, TypeError):
-        # Array string → patch dengan scalar netral 0.5
-        jmodel["learner"]["learner_model_param"]["base_score"] = "0.5"
-        with open("/tmp/_xgb_patched.json", "w") as f:
-            json.dump(jmodel, f)
-        model_for_shap = xgb.XGBClassifier()
-        model_for_shap.load_model("/tmp/_xgb_patched.json")
-
-    explainer = shap.TreeExplainer(model_for_shap)
-    return model_for_shap, explainer
+    patch_shap_for_xgb_multiclass()
+    return shap.TreeExplainer(_model)
 
 
 # ──────────────────────────────────────────────
@@ -266,17 +272,17 @@ if hasattr(model, "get_booster"):
     try:
         import shap
 
-        # [FIX BUG 1 & 2] Model dengan base_score sudah dipatch via JSON
-        model_for_shap, shap_explainer = get_patched_model_and_explainer(model)
-        shap_vals = shap_explainer.shap_values(df_input_scaled)
+        # [FIX FINAL] Buat explainer dengan patch aktif
+        shap_explainer = get_shap_explainer(model)
+        shap_vals      = shap_explainer.shap_values(df_input_scaled)
 
-        # Handle format SHAP lama (list) dan baru (array 3D)
+        # Handle format SHAP: list (lama) atau 3D array (baru)
         pred_class = int(prediction[0])
         if isinstance(shap_vals, list):
             sv = shap_vals[pred_class][0]
             ev = shap_explainer.expected_value[pred_class]
         else:
-            # SHAP >=0.47: 3D array [sample, feature, class]
+            # SHAP >=0.47: shape (n_samples, n_features, n_classes)
             sv = shap_vals[0, :, pred_class]
             ev = (shap_explainer.expected_value[pred_class]
                   if hasattr(shap_explainer.expected_value, "__len__")
@@ -287,10 +293,10 @@ if hasattr(model, "get_booster"):
             "**Merah** = mendorong stres lebih tinggi · **Biru** = mendorong stres lebih rendah."
         )
 
-        # ── Waterfall Plot ──────────────────────────────────────────
+        # ── Waterfall Plot ─────────────────────────────────────────
         exp = shap.Explanation(
             values=sv,
-            base_values=ev,
+            base_values=float(ev),
             data=df_input_scaled.iloc[0].values,
             feature_names=selected_features,
         )
@@ -299,11 +305,11 @@ if hasattr(model, "get_booster"):
         st.pyplot(fig1)
         plt.close(fig1)
 
-        # ── Bar Chart Kontribusi SHAP ───────────────────────────────
+        # ── Bar Chart Kontribusi SHAP ──────────────────────────────
         fig2, ax2 = plt.subplots(figsize=(8, 6))
         shap_series = pd.Series(sv, index=selected_features).sort_values(key=abs, ascending=True)
-        colors = ["#E24B4A" if v > 0 else "#378ADD" for v in shap_series]
-        shap_series.plot(kind="barh", color=colors, ax=ax2)
+        bar_colors  = ["#E24B4A" if v > 0 else "#378ADD" for v in shap_series]
+        shap_series.plot(kind="barh", color=bar_colors, ax=ax2)
         ax2.axvline(0, color="gray", linewidth=0.8)
         ax2.set_title("Kontribusi Fitur (SHAP) terhadap Prediksi Ini")
         ax2.set_xlabel("SHAP Value")
@@ -312,9 +318,12 @@ if hasattr(model, "get_booster"):
 
     except Exception as e:
         st.error(f"⚠️ SHAP gagal dijalankan: {e}")
-        st.info(
-            "Pastikan `requirements.txt` menggunakan `shap>=0.47.0` "
-            "agar kompatibel dengan Python 3.14 dan XGBoost 3.x."
+        st.code(
+            "Pastikan requirements.txt menggunakan:\n"
+            "  shap==0.47.0\n"
+            "  xgboost (tanpa pin versi)\n"
+            "  numpy==1.26.4",
+            language="text",
         )
 else:
     st.warning("SHAP TreeExplainer hanya tersedia untuk model berbasis pohon.")
