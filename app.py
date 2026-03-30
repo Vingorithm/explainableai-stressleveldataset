@@ -768,14 +768,14 @@ if hasattr(model, "get_booster"):
                     f"{val:+.3f}", va="center", ha=ha,
                     fontsize=7.5, color="white", alpha=0.75)
 
-        ax.axvline(0, color="rgba(255,255,255,0.25)", linewidth=1, zorder=2)
+        ax.axvline(0, color=(1, 1, 1, 0.25), linewidth=1, zorder=2)
         ax.set_xlabel("SHAP Value (pengaruh terhadap prediksi)", color="white", fontsize=9, labelpad=8)
         ax.tick_params(axis="y", colors="white", labelsize=8.5)
-        ax.tick_params(axis="x", colors="rgba(255,255,255,0.5)", labelsize=8)
+        ax.tick_params(axis="x", colors=(1, 1, 1, 0.5))
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
-        ax.spines["left"].set_color("rgba(255,255,255,0.1)")
-        ax.spines["bottom"].set_color("rgba(255,255,255,0.1)")
+        ax.spines["left"].set_color((1, 1, 1, 0.1))
+        ax.spines["bottom"].set_color((1, 1, 1, 0.1))
         ax.grid(axis="x", color="white", alpha=0.05, linestyle="--", zorder=1)
 
         red_patch  = mpatches.Patch(color="#f87171", label="Mendorong stres naik")
