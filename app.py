@@ -782,7 +782,7 @@ if hasattr(model, "get_booster"):
         blue_patch = mpatches.Patch(color="#60a5fa", label="Mendorong stres turun")
         ax.legend(handles=[red_patch, blue_patch], loc="lower right",
                   framealpha=0.15, labelcolor="white", fontsize=8,
-                  facecolor="black", edgecolor="rgba(255,255,255,0.1)")
+                  facecolor="black", edgecolor=(1, 1, 1, 0.1))
 
         plt.tight_layout()
         st.pyplot(fig, transparent=True)
@@ -822,7 +822,7 @@ if hasattr(model, "get_booster"):
         ax2.set_facecolor("none")
         ax2.tick_params(colors="white")
         for spine in ax2.spines.values():
-            spine.set_edgecolor("rgba(255,255,255,0.15)")
+            spine.set_edgecolor((1, 1, 1, 0.15))
         plt.tight_layout()
         st.pyplot(fig2, transparent=True)
         plt.close(fig2)
