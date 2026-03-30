@@ -1,15 +1,32 @@
 # app.py  –  Aplikasi Prediksi Tingkat Stres Mahasiswa
-# [FIX] SHAP + XGBoost 2.x compatibility patch
-# Root cause: XGBoost >=2.0 menyimpan base_score sebagai array per kelas
-# untuk multiclass, tetapi SHAP 0.44.1 mengasumsikan scalar → ValueError.
-# Fix: patch booster config sebelum memanggil shap.TreeExplainer().
+#
+# ═══════════════════════════════════════════════════════════
+# RINGKASAN TIGA BUG YANG DIPERBAIKI:
+#
+# BUG 1 – base_score array (root cause awal)
+#   XGBoost >=2.0 menyimpan base_score sebagai array per kelas
+#   ("[1.93E-2,-2.51E-2,5.84E-3]") untuk multiclass.
+#   SHAP mencoba float(base_score) → ValueError.
+#   FIX: Patch via JSON save/load (bukan load_config() yang diabaikan XGBoost).
+#
+# BUG 2 – patch_xgb_for_shap() versi lama tidak efektif
+#   Versi sebelumnya memakai booster.load_config(json.dumps(cfg)).
+#   Ternyata XGBoost 3.x mengabaikan perubahan base_score via load_config()
+#   karena dibaca ulang dari format UBJ binary (save_raw), bukan dari config.
+#   FIX: Simpan booster ke file JSON → patch → load_model() ulang.
+#
+# BUG 3 – SHAP 0.46.0 crash saat import di Python 3.14
+#   shap/plots/colors/_colorconv.py menggunakan np.floating yang
+#   dihapus di NumPy 2.x, sehingga crash saat import shap.
+#   FIX: Upgrade ke shap>=0.47.0 (sudah diperbaiki mulai versi itu).
+# ═══════════════════════════════════════════════════════════
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
 import json
-import shap
+import ast
 import matplotlib.pyplot as plt
 
 # ──────────────────────────────────────────────
@@ -27,61 +44,64 @@ model, scaler, le, selected_features = load_artifacts()
 
 STRESS_LABEL = {0: "🟢 Rendah", 1: "🟡 Sedang", 2: "🔴 Tinggi"}
 
-# ──────────────────────────────────────────────
-# [FIX] PATCH XGBoost base_score untuk SHAP 0.44.1
-# ──────────────────────────────────────────────
-def patch_xgb_for_shap(xgb_model):
-    """
-    XGBoost >=2.0 menyimpan base_score sebagai array string, contoh:
-      "[1.930666E-2,-2.5145054E-2,5.838394E-3]"
-    SHAP 0.44.1 mencoba float(base_score) → ValueError karena bukan scalar.
 
-    Fix: jika base_score adalah array, ambil rata-rata nilainya sebagai
-    scalar tunggal dan tulis kembali ke booster config.
-    Model asli TIDAK dimodifikasi secara permanen karena hanya config
-    dalam-memori yang diubah.
+# ──────────────────────────────────────────────
+# [FIX BUG 1 & 2] Patch XGBoost base_score via JSON save/load
+# ──────────────────────────────────────────────
+@st.cache_resource
+def get_patched_model_and_explainer(_model):
     """
+    Memperbaiki inkompatibilitas XGBoost >=2.0 dengan SHAP.
+
+    Root cause:
+      XGBoost >=2.0 pada multiclass menyimpan base_score sebagai
+      array per kelas, misal '[1.93E-2,-2.51E-2,5.84E-3]'.
+      SHAP membacanya dari format UBJ binary (save_raw) lalu
+      melakukan float(base_score) → ValueError.
+
+    Mengapa load_config() tidak bisa fix ini:
+      XGBoost 3.x mengabaikan perubahan base_score yang ditulis
+      ulang via load_config(), karena nilai aslinya tetap terbaca
+      dari binary UBJ saat SHAP memanggil save_raw().
+
+    Solusi: simpan ke JSON (format teks) → patch → load_model().
+    """
+    import xgboost as xgb
+    import shap
+
+    booster = _model.get_booster()
+
+    # Periksa apakah base_score perlu dipatch
+    booster.save_model("/tmp/_xgb_check.json")
+    with open("/tmp/_xgb_check.json") as f:
+        jmodel = json.load(f)
+
+    raw_bs = jmodel["learner"]["learner_model_param"]["base_score"]
     try:
-        booster = xgb_model.get_booster()
-        cfg = json.loads(booster.save_config())
-        raw_bs = cfg["learner"]["learner_model_param"]["base_score"]
+        float(raw_bs)  # sudah scalar → tidak perlu patch
+        model_for_shap = _model
+    except (ValueError, TypeError):
+        # Array string → patch dengan scalar netral 0.5
+        jmodel["learner"]["learner_model_param"]["base_score"] = "0.5"
+        with open("/tmp/_xgb_patched.json", "w") as f:
+            json.dump(jmodel, f)
+        model_for_shap = xgb.XGBClassifier()
+        model_for_shap.load_model("/tmp/_xgb_patched.json")
 
-        # Coba parse sebagai scalar dulu
-        try:
-            float(raw_bs)
-            # Sudah scalar → tidak perlu patch
-            return xgb_model
-        except (ValueError, TypeError):
-            pass
-
-        # base_score adalah array → hitung rata-rata
-        import ast
-        try:
-            arr = ast.literal_eval(raw_bs)
-            scalar_bs = float(np.mean(arr))
-        except Exception:
-            scalar_bs = 0.5  # fallback aman
-
-        cfg["learner"]["learner_model_param"]["base_score"] = str(scalar_bs)
-        booster.load_config(json.dumps(cfg))
-
-    except Exception as e:
-        # Jika patch gagal, lanjutkan saja — SHAP akan raise error sendiri
-        st.warning(f"[patch_xgb_for_shap] Tidak dapat patch base_score: {e}")
-
-    return xgb_model
+    explainer = shap.TreeExplainer(model_for_shap)
+    return model_for_shap, explainer
 
 
 # ──────────────────────────────────────────────
-# FUNGSI NORMALISASI (harus sama persis dengan training)
+# FUNGSI NORMALISASI (sama persis dengan training)
 # ──────────────────────────────────────────────
 MINMAX_RANGE = {
-    "study_load":              (0, 5),
-    "future_career_concerns":  (0, 5),
-    "academic_performance":    (0, 5),
-    "peer_pressure":           (0, 5),
-    "bullying":                (0, 5),
-    "social_support":          (0, 5),
+    "study_load":             (0, 5),
+    "future_career_concerns": (0, 5),
+    "academic_performance":   (0, 5),
+    "peer_pressure":          (0, 5),
+    "bullying":               (0, 5),
+    "social_support":         (0, 5),
 }
 
 def minmax_norm_single(value: float, feat: str) -> float:
@@ -90,11 +110,6 @@ def minmax_norm_single(value: float, feat: str) -> float:
 
 
 def build_input_row(raw: dict) -> pd.DataFrame:
-    """
-    Menerima dictionary input pengguna (nilai mentah),
-    menghitung 3 fitur turunan, lalu menyusun DataFrame
-    dengan urutan kolom sesuai selected_features.
-    """
     w_study  = 0.6342
     w_career = 0.7426
     w_acad   = 0.7209
@@ -105,7 +120,6 @@ def build_input_row(raw: dict) -> pd.DataFrame:
         + (w_career / total_w) * minmax_norm_single(raw["future_career_concerns"], "future_career_concerns")
         + (w_acad   / total_w) * (1 - minmax_norm_single(raw["academic_performance"], "academic_performance"))
     )
-
     MAX_LIVING, MAX_SAFETY, MAX_BASIC = 5, 5, 5
     environment_quality_index = (
         raw["noise_level"]
@@ -113,18 +127,15 @@ def build_input_row(raw: dict) -> pd.DataFrame:
         + (MAX_SAFETY - raw["safety"])
         + (MAX_BASIC  - raw["basic_needs"])
     )
-
     social_stress_score = (
         minmax_norm_single(raw["peer_pressure"], "peer_pressure")
-        + minmax_norm_single(raw["bullying"],       "bullying")
+        + minmax_norm_single(raw["bullying"],      "bullying")
         + (1 - minmax_norm_single(raw["social_support"], "social_support"))
     )
-
     full = {**raw,
-            "academic_stress_index":    academic_stress_index,
+            "academic_stress_index":     academic_stress_index,
             "environment_quality_index": environment_quality_index,
             "social_stress_score":       social_stress_score}
-
     return pd.DataFrame([full])[selected_features]
 
 
@@ -145,60 +156,60 @@ st.sidebar.header("📋 Input Data Mahasiswa")
 
 with st.sidebar:
     st.subheader("🧠 Faktor Psikologis")
-    anxiety_level       = st.slider("Tingkat Kecemasan",         0, 21, 10)
-    self_esteem         = st.slider("Harga Diri (Self-Esteem)",  0, 30, 15)
+    anxiety_level         = st.slider("Tingkat Kecemasan",         0, 21, 10)
+    self_esteem           = st.slider("Harga Diri (Self-Esteem)",  0, 30, 15)
     mental_health_history = st.selectbox("Riwayat Masalah Mental", [0, 1],
                                           format_func=lambda x: "Tidak" if x == 0 else "Ya")
-    depression          = st.slider("Tingkat Depresi",            0, 27, 10)
+    depression            = st.slider("Tingkat Depresi",            0, 27, 10)
 
     st.subheader("🏥 Kesehatan Fisik")
-    headache            = st.slider("Frekuensi Sakit Kepala",    0, 5, 2)
-    blood_pressure      = st.slider("Tekanan Darah",             1, 3, 2)
-    sleep_quality       = st.slider("Kualitas Tidur",            1, 5, 3)
-    breathing_problem   = st.slider("Masalah Pernapasan",        0, 5, 1)
+    headache          = st.slider("Frekuensi Sakit Kepala",    0, 5, 2)
+    blood_pressure    = st.slider("Tekanan Darah",             1, 3, 2)
+    sleep_quality     = st.slider("Kualitas Tidur",            1, 5, 3)
+    breathing_problem = st.slider("Masalah Pernapasan",        0, 5, 1)
 
     st.subheader("🏠 Lingkungan")
-    noise_level         = st.slider("Tingkat Kebisingan",        0, 5, 2)
-    living_conditions   = st.slider("Kondisi Tempat Tinggal",    1, 5, 3)
-    safety              = st.slider("Tingkat Keamanan",          1, 5, 3)
-    basic_needs         = st.slider("Pemenuhan Kebutuhan Dasar", 1, 5, 3)
+    noise_level       = st.slider("Tingkat Kebisingan",        0, 5, 2)
+    living_conditions = st.slider("Kondisi Tempat Tinggal",    1, 5, 3)
+    safety            = st.slider("Tingkat Keamanan",          1, 5, 3)
+    basic_needs       = st.slider("Pemenuhan Kebutuhan Dasar", 1, 5, 3)
 
     st.subheader("📚 Akademik")
-    academic_performance    = st.slider("Performa Akademik",          1, 5, 3)
-    study_load              = st.slider("Beban Belajar",              1, 5, 3)
-    teacher_student_relationship = st.slider("Hub. Dosen-Mahasiswa",  1, 5, 3)
-    future_career_concerns  = st.slider("Kekhawatiran Karir",         1, 5, 3)
+    academic_performance         = st.slider("Performa Akademik",    1, 5, 3)
+    study_load                   = st.slider("Beban Belajar",        1, 5, 3)
+    teacher_student_relationship = st.slider("Hub. Dosen-Mahasiswa", 1, 5, 3)
+    future_career_concerns       = st.slider("Kekhawatiran Karir",   1, 5, 3)
 
     st.subheader("👥 Sosial")
-    social_support          = st.slider("Dukungan Sosial",            1, 5, 3)
-    peer_pressure           = st.slider("Tekanan Teman Sebaya",       1, 5, 3)
+    social_support             = st.slider("Dukungan Sosial",           1, 5, 3)
+    peer_pressure              = st.slider("Tekanan Teman Sebaya",      1, 5, 3)
     extracurricular_activities = st.slider("Aktivitas Ekstrakurikuler", 0, 5, 2)
-    bullying                = st.slider("Tingkat Perundungan",        0, 5, 1)
+    bullying                   = st.slider("Tingkat Perundungan",       0, 5, 1)
 
 # ──────────────────────────────────────────────
 # PROSES PREDIKSI
 # ──────────────────────────────────────────────
 raw_input = {
-    "anxiety_level":               anxiety_level,
-    "self_esteem":                 self_esteem,
-    "mental_health_history":       mental_health_history,
-    "depression":                  depression,
-    "headache":                    headache,
-    "blood_pressure":              blood_pressure,
-    "sleep_quality":               sleep_quality,
-    "breathing_problem":           breathing_problem,
-    "noise_level":                 noise_level,
-    "living_conditions":           living_conditions,
-    "safety":                      safety,
-    "basic_needs":                 basic_needs,
-    "academic_performance":        academic_performance,
-    "study_load":                  study_load,
-    "teacher_student_relationship":teacher_student_relationship,
-    "future_career_concerns":      future_career_concerns,
-    "social_support":              social_support,
-    "peer_pressure":               peer_pressure,
-    "extracurricular_activities":  extracurricular_activities,
-    "bullying":                    bullying,
+    "anxiety_level":                anxiety_level,
+    "self_esteem":                  self_esteem,
+    "mental_health_history":        mental_health_history,
+    "depression":                   depression,
+    "headache":                     headache,
+    "blood_pressure":               blood_pressure,
+    "sleep_quality":                sleep_quality,
+    "breathing_problem":            breathing_problem,
+    "noise_level":                  noise_level,
+    "living_conditions":            living_conditions,
+    "safety":                       safety,
+    "basic_needs":                  basic_needs,
+    "academic_performance":         academic_performance,
+    "study_load":                   study_load,
+    "teacher_student_relationship": teacher_student_relationship,
+    "future_career_concerns":       future_career_concerns,
+    "social_support":               social_support,
+    "peer_pressure":                peer_pressure,
+    "extracurricular_activities":   extracurricular_activities,
+    "bullying":                     bullying,
 }
 
 df_input_raw    = build_input_row(raw_input)
@@ -214,7 +225,6 @@ prediction_proba = model.predict_proba(df_input_scaled)
 # UI – HASIL PREDIKSI
 # ──────────────────────────────────────────────
 st.subheader("📊 Ringkasan Input")
-
 col1, col2 = st.columns(2)
 with col1:
     st.write("**20 Fitur Asli:**")
@@ -236,13 +246,12 @@ with col2:
 
 st.divider()
 st.subheader("🎯 Hasil Prediksi Tingkat Stres")
-
 predicted_label = STRESS_LABEL[prediction[0]]
 st.metric("Tingkat Stres", predicted_label)
 
 st.write("**Probabilitas per Kelas:**")
 prob_df = pd.DataFrame({
-    "Kelas": [STRESS_LABEL[i] for i in range(3)],
+    "Kelas":        [STRESS_LABEL[i] for i in range(3)],
     "Probabilitas": [f"{p:.2%}" for p in prediction_proba[0]],
 })
 st.dataframe(prob_df, use_container_width=True)
@@ -253,21 +262,21 @@ st.dataframe(prob_df, use_container_width=True)
 st.divider()
 st.subheader("🔍 Penjelasan Prediksi (SHAP)")
 
-if hasattr(model, "get_booster"):  # XGBoost
+if hasattr(model, "get_booster"):
     try:
-        # [FIX] Patch base_score dulu agar kompatibel dengan SHAP 0.44.1
-        # Root cause: XGBoost >=2.0 menyimpan base_score sebagai array
-        # per kelas untuk multiclass, tapi SHAP 0.44.1 expect scalar.
-        patched_model  = patch_xgb_for_shap(model)
-        shap_explainer = shap.TreeExplainer(patched_model)
-        shap_vals      = shap_explainer.shap_values(df_input_scaled)
+        import shap
 
-        # [FIX] Kompatibel dengan SHAP versi lama (list) maupun baru (array 3D)
+        # [FIX BUG 1 & 2] Model dengan base_score sudah dipatch via JSON
+        model_for_shap, shap_explainer = get_patched_model_and_explainer(model)
+        shap_vals = shap_explainer.shap_values(df_input_scaled)
+
+        # Handle format SHAP lama (list) dan baru (array 3D)
         pred_class = int(prediction[0])
         if isinstance(shap_vals, list):
             sv = shap_vals[pred_class][0]
             ev = shap_explainer.expected_value[pred_class]
         else:
+            # SHAP >=0.47: 3D array [sample, feature, class]
             sv = shap_vals[0, :, pred_class]
             ev = (shap_explainer.expected_value[pred_class]
                   if hasattr(shap_explainer.expected_value, "__len__")
@@ -278,13 +287,19 @@ if hasattr(model, "get_booster"):  # XGBoost
             "**Merah** = mendorong stres lebih tinggi · **Biru** = mendorong stres lebih rendah."
         )
 
-        # Force Plot
-        fig, ax = plt.subplots(figsize=(12, 4))
-        shap.force_plot(ev, sv, df_input_scaled.iloc[0], matplotlib=True, show=False)
-        st.pyplot(fig)
-        plt.close(fig)
+        # ── Waterfall Plot ──────────────────────────────────────────
+        exp = shap.Explanation(
+            values=sv,
+            base_values=ev,
+            data=df_input_scaled.iloc[0].values,
+            feature_names=selected_features,
+        )
+        fig1, _ = plt.subplots(figsize=(10, 7))
+        shap.plots.waterfall(exp, show=False)
+        st.pyplot(fig1)
+        plt.close(fig1)
 
-        # Bar chart kontribusi SHAP
+        # ── Bar Chart Kontribusi SHAP ───────────────────────────────
         fig2, ax2 = plt.subplots(figsize=(8, 6))
         shap_series = pd.Series(sv, index=selected_features).sort_values(key=abs, ascending=True)
         colors = ["#E24B4A" if v > 0 else "#378ADD" for v in shap_series]
@@ -298,11 +313,11 @@ if hasattr(model, "get_booster"):  # XGBoost
     except Exception as e:
         st.error(f"⚠️ SHAP gagal dijalankan: {e}")
         st.info(
-            "**Kemungkinan penyebab:** Inkompatibilitas versi SHAP dengan XGBoost. "
-            "Coba upgrade SHAP ke versi ≥0.46.0 di requirements.txt."
+            "Pastikan `requirements.txt` menggunakan `shap>=0.47.0` "
+            "agar kompatibel dengan Python 3.14 dan XGBoost 3.x."
         )
 else:
-    st.warning("SHAP TreeExplainer hanya tersedia untuk model berbasis pohon (XGBoost, dll.).")
+    st.warning("SHAP TreeExplainer hanya tersedia untuk model berbasis pohon.")
 
 st.caption(
     "Model: XGBoost · Interpretabilitas: SHAP TreeExplainer · "
