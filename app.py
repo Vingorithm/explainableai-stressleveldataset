@@ -436,7 +436,7 @@ def get_shap_explainer(_model):
 MINMAX_RANGE = {
     "study_load": (0, 5), "future_career_concerns": (0, 5),
     "academic_performance": (0, 5), "peer_pressure": (0, 5),
-    "bullying": (0, 5), "social_support": (0, 5),
+    "bullying": (0, 5), "social_support": (0, 3),
 }
 
 def minmax_norm_single(value, feat):
