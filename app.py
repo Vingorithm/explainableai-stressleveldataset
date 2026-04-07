@@ -326,7 +326,7 @@ hr { border-color: rgba(255,255,255,0.08) !important; }
 # ──────────────────────────────────────────────
 @st.cache_resource
 def load_artifacts():
-    model             = joblib.load("xgb_model.pkl")
+    model             = joblib.load("lgbm_model.pkl") # Changed from xgb_model.pkl
     scaler            = joblib.load("scaler.pkl")
     label_encoder     = joblib.load("label_encoder.pkl")
     selected_features = joblib.load("selected_features.pkl")
@@ -389,44 +389,15 @@ FEATURE_LABELS = {
 
 
 # ──────────────────────────────────────────────
-# [FIX] SHAP Monkey-Patch (XGBoost 3.x multiclass)
+# [FIX] SHAP Monkey-Patch (XGBoost 3.x multiclass) - Removed for LightGBM
 # ──────────────────────────────────────────────
-def patch_shap_for_xgb_multiclass():
-    import shap.explainers._tree as _tree_mod
-    _OrigLoader = _tree_mod.XGBTreeModelLoader
-    _orig_init  = _OrigLoader.__init__
-    _orig_float = builtins.float
-    if getattr(_OrigLoader, "_patched_for_multiclass", False):
-        return
-
-    class _ArrayAwareFloat(float):
-        def __new__(cls, x=0):
-            if isinstance(x, str):
-                try:
-                    return _orig_float.__new__(cls, x)
-                except (ValueError, TypeError):
-                    try:
-                        arr = ast.literal_eval(x)
-                        return _orig_float.__new__(cls, np.mean(arr))
-                    except Exception:
-                        return _orig_float.__new__(cls, 0.5)
-            return _orig_float.__new__(cls, x)
-
-    def _patched_init(self, xgb_model):
-        builtins.float = _ArrayAwareFloat
-        try:
-            _orig_init(self, xgb_model)
-        finally:
-            builtins.float = _orig_float
-
-    _OrigLoader.__init__ = _patched_init
-    _OrigLoader._patched_for_multiclass = True
-
+# LightGBM does not typically require the same monkey-patching for SHAP as XGBoost.
+# Removed the patch.
 
 @st.cache_resource
 def get_shap_explainer(_model):
     import shap
-    patch_shap_for_xgb_multiclass()
+    # patch_shap_for_xgb_multiclass() # Removed
     return shap.TreeExplainer(_model)
 
 
@@ -663,7 +634,9 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-if hasattr(model, "get_booster"):
+# Changed from hasattr(model, "get_booster") to check if model is LGBMClassifier for SHAP
+from lightgbm import LGBMClassifier
+if isinstance(model, LGBMClassifier):
     try:
         import shap
 
