@@ -326,7 +326,7 @@ hr { border-color: rgba(255,255,255,0.08) !important; }
 # ──────────────────────────────────────────────
 @st.cache_resource
 def load_artifacts():
-    model             = joblib.load("lgbm_model.pkl") # Changed from xgb_model.pkl
+    model             = joblib.load("xgb_model.pkl")
     scaler            = joblib.load("scaler.pkl")
     label_encoder     = joblib.load("label_encoder.pkl")
     selected_features = joblib.load("selected_features.pkl")
@@ -387,10 +387,46 @@ FEATURE_LABELS = {
     "social_stress_score":         "Skor Stres Sosial",
 }
 
+
+# ──────────────────────────────────────────────
+# [FIX] SHAP Monkey-Patch (XGBoost 3.x multiclass)
+# ──────────────────────────────────────────────
+def patch_shap_for_xgb_multiclass():
+    import shap.explainers._tree as _tree_mod
+    _OrigLoader = _tree_mod.XGBTreeModelLoader
+    _orig_init  = _OrigLoader.__init__
+    _orig_float = builtins.float
+    if getattr(_OrigLoader, "_patched_for_multiclass", False):
+        return
+
+    class _ArrayAwareFloat(float):
+        def __new__(cls, x=0):
+            if isinstance(x, str):
+                try:
+                    return _orig_float.__new__(cls, x)
+                except (ValueError, TypeError):
+                    try:
+                        arr = ast.literal_eval(x)
+                        return _orig_float.__new__(cls, np.mean(arr))
+                    except Exception:
+                        return _orig_float.__new__(cls, 0.5)
+            return _orig_float.__new__(cls, x)
+
+    def _patched_init(self, xgb_model):
+        builtins.float = _ArrayAwareFloat
+        try:
+            _orig_init(self, xgb_model)
+        finally:
+            builtins.float = _orig_float
+
+    _OrigLoader.__init__ = _patched_init
+    _OrigLoader._patched_for_multiclass = True
+
+
 @st.cache_resource
 def get_shap_explainer(_model):
     import shap
-    # patch_shap_for_xgb_multiclass() # Removed
+    patch_shap_for_xgb_multiclass()
     return shap.TreeExplainer(_model)
 
 
@@ -493,7 +529,7 @@ with st.sidebar:
 # ── Hero Banner ──
 st.markdown("""
 <div class="hero-banner">
-    <div class="hero-badge">🎓 RESEARCH TOOL · LightGBM + SHAP</div>
+    <div class="hero-badge">🎓 RESEARCH TOOL · XGBoost + SHAP</div>
     <h1 class="hero-title">Prediksi Tingkat Stres<br>Mahasiswa</h1>
     <p class="hero-subtitle">
         Isi data kondisi kamu di sidebar kiri, lalu lihat hasil prediksi berbasis AI
@@ -583,7 +619,7 @@ with col_prob:
     <div class="info-box" style="margin-top:1rem;">
         <strong>Tingkat Keyakinan Model:</strong> {confidence:.1%}<br>
         <span style="font-size:0.8rem;">
-            Model LightGBM menganalisis 23 fitur untuk menghasilkan prediksi ini.
+            Model XGBoost menganalisis 23 fitur untuk menghasilkan prediksi ini.
         </span>
     </div>
     """, unsafe_allow_html=True)
@@ -627,9 +663,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Changed from hasattr(model, "get_booster") to check if model is LGBMClassifier for SHAP
-from lightgbm import LGBMClassifier
-if isinstance(model, LGBMClassifier):
+if hasattr(model, "get_booster"):
     try:
         import shap
 
@@ -850,7 +884,7 @@ st.markdown("""
             border-top:1px solid rgba(255,255,255,0.08);'>
     <span style='font-family:Space Mono,monospace;font-size:0.75rem;
                  color:rgba(255,255,255,0.25);letter-spacing:0.08em;'>
-        MODEL: LightGBM &nbsp;·&nbsp; EXPLAINABILITY: SHAP TreeExplainer
+        MODEL: XGBoost &nbsp;·&nbsp; EXPLAINABILITY: SHAP TreeExplainer
         &nbsp;·&nbsp; FRAMEWORK: CRISP-DM &nbsp;·&nbsp; UI: Streamlit
     </span>
 </div>
