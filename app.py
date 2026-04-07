@@ -387,13 +387,6 @@ FEATURE_LABELS = {
     "social_stress_score":         "Skor Stres Sosial",
 }
 
-
-# ──────────────────────────────────────────────
-# [FIX] SHAP Monkey-Patch (XGBoost 3.x multiclass) - Removed for LightGBM
-# ──────────────────────────────────────────────
-# LightGBM does not typically require the same monkey-patching for SHAP as XGBoost.
-# Removed the patch.
-
 @st.cache_resource
 def get_shap_explainer(_model):
     import shap
@@ -500,7 +493,7 @@ with st.sidebar:
 # ── Hero Banner ──
 st.markdown("""
 <div class="hero-banner">
-    <div class="hero-badge">🎓 RESEARCH TOOL · XGBoost + SHAP</div>
+    <div class="hero-badge">🎓 RESEARCH TOOL · LightGBM + SHAP</div>
     <h1 class="hero-title">Prediksi Tingkat Stres<br>Mahasiswa</h1>
     <p class="hero-subtitle">
         Isi data kondisi kamu di sidebar kiri, lalu lihat hasil prediksi berbasis AI
@@ -590,7 +583,7 @@ with col_prob:
     <div class="info-box" style="margin-top:1rem;">
         <strong>Tingkat Keyakinan Model:</strong> {confidence:.1%}<br>
         <span style="font-size:0.8rem;">
-            Model XGBoost menganalisis 23 fitur untuk menghasilkan prediksi ini.
+            Model LightGBM menganalisis 23 fitur untuk menghasilkan prediksi ini.
         </span>
     </div>
     """, unsafe_allow_html=True)
@@ -857,7 +850,7 @@ st.markdown("""
             border-top:1px solid rgba(255,255,255,0.08);'>
     <span style='font-family:Space Mono,monospace;font-size:0.75rem;
                  color:rgba(255,255,255,0.25);letter-spacing:0.08em;'>
-        MODEL: XGBoost &nbsp;·&nbsp; EXPLAINABILITY: SHAP TreeExplainer
+        MODEL: LightGBM &nbsp;·&nbsp; EXPLAINABILITY: SHAP TreeExplainer
         &nbsp;·&nbsp; FRAMEWORK: CRISP-DM &nbsp;·&nbsp; UI: Streamlit
     </span>
 </div>
