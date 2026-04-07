@@ -3,6 +3,7 @@ pandas
 numpy==1.26.4
 scikit-learn
 xgboost
+lightgbm
 joblib
 matplotlib
 shap==0.47.0
