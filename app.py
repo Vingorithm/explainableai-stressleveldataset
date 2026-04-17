@@ -30,7 +30,7 @@ st.markdown("""
 
 html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
-    color: #1f2937;
+    color: #fffff;
 }
 .stApp { background: #f8fafc; }
 .block-container { padding-top: 1.5rem; padding-bottom: 2rem; max-width: 1100px; }
