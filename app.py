@@ -126,7 +126,7 @@ ADVICE_MAP = {
 @st.cache_resource
 def load_artifacts():
     try:
-        model             = joblib.load("xgboost_model.pkl") # Disesuaikan dengan penamaan file joblib di script utama
+        model             = joblib.load("xgb_model.pkl") # Disesuaikan dengan penamaan file joblib di script utama
         scaler            = joblib.load("scaler.pkl")
         label_encoder     = joblib.load("label_encoder.pkl")
         selected_features = joblib.load("selected_features.pkl")
