@@ -191,31 +191,31 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    with st.expander("🧠 Psikologis", expanded=True):
+    with st.expander("Psikologis", expanded=True):
         anxiety_level         = st.slider("Kecemasan", 0, 21, 10, help="Skala 0 (Tidak cemas sama sekali) hingga 21 (Sangat cemas/Kecemasan berat)")
         self_esteem           = st.slider("Harga Diri", 0, 30, 15, help="Skala 0 (Sangat rendah/Tidak percaya diri) hingga 30 (Sangat tinggi)")
         mental_health_history = st.selectbox("Riwayat Mental", [0, 1], format_func=lambda x: "Tidak ada" if x == 0 else "Ada riwayat", help="0 = Tidak pernah memiliki masalah mental. 1 = Memiliki riwayat masalah mental sebelumnya.")
         depression            = st.slider("Depresi", 0, 27, 10, help="Skala 0 (Tidak ada gejala depresi) hingga 27 (Depresi sangat berat)")
 
-    with st.expander("🩺 Kesehatan Fisik", expanded=False):
+    with st.expander("Kesehatan Fisik", expanded=False):
         headache          = st.slider("Sakit Kepala", 0, 5, 2, help="Frekuensi: 0 (Tidak pernah) hingga 5 (Sangat sering / hampir setiap hari)")
         blood_pressure    = st.slider("Tekanan Darah", 1, 3, 2, help="Kondisi: 1 (Hipotensi/Rendah), 2 (Normal), 3 (Hipertensi/Tinggi)")
         sleep_quality     = st.slider("Kualitas Tidur", 1, 5, 3, help="Skala 1 (Sangat buruk / insomnia) hingga 5 (Sangat nyenyak dan berkualitas)")
         breathing_problem = st.slider("Pernapasan", 0, 5, 1, help="Gangguan napas/sesak: 0 (Tidak pernah bermasalah) hingga 5 (Sering bermasalah/sesak)")
 
-    with st.expander("🏠 Lingkungan", expanded=False):
+    with st.expander("Lingkungan", expanded=False):
         noise_level       = st.slider("Kebisingan", 0, 5, 2, help="Skala 0 (Lingkungan sangat tenang) hingga 5 (Sangat bising / mengganggu)")
         living_conditions = st.slider("Kondisi Tempat", 1, 5, 3, help="Kelayakan: 1 (Sangat buruk/tidak layak) hingga 5 (Sangat baik dan nyaman)")
         safety            = st.slider("Rasa Aman", 1, 5, 3, help="Skala 1 (Sangat merasa tidak aman) hingga 5 (Sangat aman dari gangguan)")
         basic_needs       = st.slider("Kebutuhan Dasar", 1, 5, 3, help="Pemenuhan makan/minum/fasilitas: 1 (Sering tidak terpenuhi) hingga 5 (Selalu terpenuhi dengan baik)")
 
-    with st.expander("📚 Akademik", expanded=False):
+    with st.expander("Akademik", expanded=False):
         academic_performance         = st.slider("Performa", 1, 5, 3, help="Kinerja akademik: 1 (Sangat buruk/IPK rendah) hingga 5 (Sangat baik/IPK sangat tinggi)")
         study_load                   = st.slider("Beban Belajar", 1, 5, 3, help="Skala 1 (Beban tugas sangat ringan) hingga 5 (Beban tugas sangat berat)")
         teacher_student_relationship = st.slider("Hub. Dosen", 1, 5, 3, help="Interaksi dengan dosen: 1 (Sangat buruk/sering konflik) hingga 5 (Sangat baik/suportif)")
         future_career_concerns       = st.slider("Khawatir Karir", 1, 5, 3, help="Kecemasan masa depan: 1 (Tidak khawatir sama sekali) hingga 5 (Sangat cemas akan karir)")
 
-    with st.expander("👥 Sosial", expanded=False):
+    with st.expander("Sosial", expanded=False):
         social_support             = st.slider("Dukungan Sosial", 0, 3, 2, help="Tingkat dukungan keluarga/teman: 0 (Tidak ada) hingga 3 (Dukungan penuh)")
         peer_pressure              = st.slider("Tekanan Teman", 1, 5, 3, help="Tuntutan pertemanan (Peer pressure): 1 (Tidak ada tekanan) hingga 5 (Tekanan sangat tinggi)")
         extracurricular_activities = st.slider("Ekskul", 0, 5, 2, help="Keterlibatan organisasi/ekskul: 0 (Tidak aktif sama sekali) hingga 5 (Sangat aktif/sibuk)")
@@ -261,7 +261,7 @@ cfg              = STRESS_CONFIG[pred_class]
 st.markdown("### 🎓 Prediksi Tingkat Stres Mahasiswa (XGBoost + SHAP)")
 st.markdown("<p style='color:#64748b; font-size:0.9rem; margin-top:-0.5rem;'>Implementasi Machine Learning berdasarkan metodologi CRISP-DM.</p>", unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Prediksi Individu", "🧠 Interpretasi Model", "📝 Ringkasan Data", "📁 Prediksi Batch", "📈 Performa Model"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Prediksi Individu", "Interpretasi Model", "Ringkasan Data", "Prediksi Batch", "Performa Model"])
 
 # ── TAB 1: HASIL PREDIKSI ──
 with tab1:
