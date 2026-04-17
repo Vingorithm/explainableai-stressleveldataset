@@ -9,6 +9,7 @@ import builtins
 import ast
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import altair as alt  # <-- Ditambahkan untuk visualisasi yang lebih baik
 
 # ──────────────────────────────────────────────
 # PAGE CONFIG
@@ -351,16 +352,58 @@ with tab2:
             st.error(f"Grafik SHAP gagal dimuat: {e}")
 
 
-# ── TAB 3: DATA INPUT SUMMARY ──
+# ── TAB 3: DATA INPUT SUMMARY (Updated dengan Bar Horizontal Berskala) ──
 with tab3:
     st.markdown("<br>", unsafe_allow_html=True)
     col_a, col_b = st.columns([1.5, 1], gap="large")
 
     with col_a:
-        st.markdown("<div class='section-title'>Visualisasi Input Mayor</div>", unsafe_allow_html=True)
-        selected_to_plot = {k: v for k, v in raw_input.items() if k in ["anxiety_level", "depression", "self_esteem", "study_load", "peer_pressure"]}
-        chart_data = pd.DataFrame({"Faktor": [FEATURE_LABELS.get(k, k) for k in selected_to_plot.keys()], "Nilai": list(selected_to_plot.values())})
-        st.bar_chart(chart_data.set_index("Faktor"), height=300)
+        st.markdown("<div class='section-title'>Visualisasi Input Mayor (Skala Relatif)</div>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#64748b; font-size:0.85rem; margin-top:-0.5rem; margin-bottom:1rem;'>Nilai dinormalisasi ke persentase (0-100%) agar adil untuk dibandingkan, mengingat setiap fitur memiliki rentang maksimal yang berbeda-beda.</p>", unsafe_allow_html=True)
+        
+        # Mendefinisikan nilai maksimal slider untuk proporsi persentase yang adil
+        max_ranges = {
+            "anxiety_level": 21,
+            "depression": 27,
+            "self_esteem": 30,
+            "study_load": 5,
+            "peer_pressure": 5
+        }
+        
+        selected_to_plot = {k: v for k, v in raw_input.items() if k in max_ranges.keys()}
+        
+        plot_data = []
+        for k, v in selected_to_plot.items():
+            max_val = max_ranges[k]
+            pct = (v / max_val) * 100
+            plot_data.append({
+                "Faktor": FEATURE_LABELS.get(k, k),
+                "Intensitas (%)": pct,
+                "Nilai Asli": f"{v} / {max_val}"
+            })
+            
+        chart_df = pd.DataFrame(plot_data)
+        
+        # Menggunakan Altair untuk Bar Chart horizontal dengan label ujung
+        bars = alt.Chart(chart_df).mark_bar(color='#3b82f6', cornerRadiusEnd=4, height=22).encode(
+            x=alt.X('Intensitas (%):Q', scale=alt.Scale(domain=[0, 100]), title='Skala Relatif Keparahan (%)'),
+            y=alt.Y('Faktor:N', sort='-x', title=None, axis=alt.Axis(labelLimit=150, labelFontSize=12)),
+            tooltip=['Faktor', 'Nilai Asli', alt.Tooltip('Intensitas (%):Q', format='.1f')]
+        )
+        
+        # Teks untuk menunjukkan nilai asli di sebelah bar
+        text = bars.mark_text(
+            align='left',
+            baseline='middle',
+            dx=5,
+            fontSize=11,
+            fontWeight=600,
+            color='#1e293b'
+        ).encode(
+            text='Nilai Asli:N'
+        )
+        
+        st.altair_chart((bars + text).properties(height=280), use_container_width=True)
 
     with col_b:
         st.markdown("<div class='section-title'>Fitur Kalkulasi Model</div>", unsafe_allow_html=True)
@@ -404,7 +447,7 @@ with tab4:
         except Exception as e:
             st.error(f"Terjadi kesalahan saat memproses file: {e}. Pastikan format kolom sama persis dengan atribut fitur.")
 
-# ── TAB 5: PERFORMA MODEL (New Feature for Thesis) ──
+# ── TAB 5: PERFORMA MODEL ──
 with tab5:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<div class='section-title'>Evaluasi & Metrik Model Terbaik (XGBoost)</div>", unsafe_allow_html=True)
@@ -413,10 +456,6 @@ with tab5:
         Berdasarkan komparasi algoritma (XGBoost vs Random Forest vs LightGBM) yang telah dievaluasi dengan metode <strong>Cross-Validation 5-Fold</strong> serta dilacak secara riwayat terpusat menggunakan <strong>Weights & Biases (W&B)</strong>, model XGBoost ditetapkan sebagai algoritma terbaik dengan performa sebagai berikut:
     </p>
     """, unsafe_allow_html=True)
-
-    # Note: Nilai metrik bisa disesuaikan dengan hasil riil running Colab Anda. 
-    # Karena di kode aslinya metrik dihasilkan secara dinamis, saya gunakan placeholder format yang rapi.
-    # Anda bisa mengganti angka "91.50%" dengan angka real dari notebook W&B Anda.
     
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
     with col_m1:

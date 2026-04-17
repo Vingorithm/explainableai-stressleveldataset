@@ -8,3 +8,4 @@ joblib
 matplotlib
 shap==0.47.0
 seaborn
+altair
