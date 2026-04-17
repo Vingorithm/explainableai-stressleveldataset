@@ -15,7 +15,7 @@ import matplotlib.patches as mpatches
 # ──────────────────────────────────────────────
 st.set_page_config(
     page_title="StressCheck – Prediksi Tingkat Stres",
-    page_icon="🧠",
+    page_icon="🧊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -25,212 +25,97 @@ st.set_page_config(
 # ──────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 /* ── Reset & Base ── */
 html, body, [class*="css"] {
-    font-family: 'DM Sans', sans-serif;
-    color: #1a1f2e;
+    font-family: 'Inter', sans-serif;
+    color: #1f2937;
 }
 
 .stApp {
-    background: #f5f6fa;
-    min-height: 100vh;
+    background: #f8fafc;
 }
 
 .block-container {
-    padding-top: 1.5rem;
-    padding-bottom: 3rem;
-    max-width: 1100px;
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    max-width: 1080px;
 }
 
 /* ── Sidebar ── */
 section[data-testid="stSidebar"] {
     background: #ffffff;
-    border-right: 1px solid #e5e8ef;
-    box-shadow: 2px 0 8px rgba(0,0,0,0.04);
+    border-right: 1px solid #e2e8f0;
 }
 
 section[data-testid="stSidebar"] label {
-    font-size: 0.82rem !important;
+    font-size: 0.85rem !important;
     font-weight: 500 !important;
-    color: #4b5563 !important;
-}
-
-section[data-testid="stSidebar"] .stSlider > div > div > div {
-    background: #3b82f6 !important;
+    color: #475569 !important;
 }
 
 /* Sidebar header */
 .sidebar-header {
-    padding: 0.25rem 0 1.25rem 0;
-    border-bottom: 1px solid #e5e8ef;
+    padding: 0.5rem 0 1rem 0;
+    border-bottom: 1px solid #f1f5f9;
     margin-bottom: 1rem;
 }
 .sidebar-app-name {
-    font-size: 1rem;
+    font-size: 1.1rem;
     font-weight: 700;
-    color: #1a1f2e;
+    color: #0f172a;
     letter-spacing: -0.01em;
 }
 .sidebar-tagline {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: #64748b;
     margin-top: 0.2rem;
 }
 
-/* ── Hero ── */
-.hero {
-    background: #ffffff;
-    border: 1px solid #e5e8ef;
-    border-radius: 14px;
-    padding: 1.5rem 2rem;
-    margin-bottom: 1.25rem;
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-}
-.hero-text h1 {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #1a1f2e;
-    margin: 0 0 0.25rem 0;
-    letter-spacing: -0.02em;
-}
-.hero-text p {
-    font-size: 0.85rem;
-    color: #6b7280;
-    margin: 0;
-    line-height: 1.6;
-    max-width: 580px;
-}
-.hero-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    background: #eff6ff;
-    border: 1px solid #bfdbfe;
-    color: #2563eb;
-    font-size: 0.72rem;
-    font-weight: 600;
-    padding: 3px 10px;
-    border-radius: 20px;
-    margin-bottom: 0.6rem;
-    font-family: 'DM Mono', monospace;
-}
-.hero-icon {
-    font-size: 2.5rem;
-    flex-shrink: 0;
-    opacity: 0.8;
-}
-
-/* ── Instruction Steps ── */
-.steps-row {
-    display: flex;
-    gap: 0.75rem;
-    margin-bottom: 1.25rem;
-}
-.step-item {
-    flex: 1;
-    background: #ffffff;
-    border: 1px solid #e5e8ef;
-    border-radius: 10px;
-    padding: 0.85rem 1rem;
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-}
-.step-num {
-    width: 22px;
-    height: 22px;
-    background: #3b82f6;
-    color: #fff;
-    font-size: 0.72rem;
-    font-weight: 700;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    margin-top: 1px;
-}
-.step-title {
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: #1a1f2e;
-    margin-bottom: 0.15rem;
-}
-.step-desc {
-    font-size: 0.75rem;
-    color: #6b7280;
-    line-height: 1.4;
-}
-
-/* ── Section Headers ── */
-.section-header {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    margin-bottom: 1rem;
-    padding-bottom: 0.6rem;
-    border-bottom: 1px solid #e5e8ef;
-}
-.section-tag {
-    background: #eff6ff;
-    color: #2563eb;
-    font-size: 0.7rem;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-family: 'DM Mono', monospace;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
+/* ── Typography & Tags ── */
 .section-title {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #1a1f2e;
-    margin: 0;
-}
-.section-subtitle {
-    font-size: 0.78rem;
-    color: #6b7280;
-    margin-left: auto;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #0f172a;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e2e8f0;
 }
 
 /* ── Result Card ── */
 .result-card {
-    border-radius: 12px;
-    padding: 1.5rem 1.75rem;
+    border-radius: 8px;
+    padding: 1.5rem;
     text-align: center;
-    border: 1.5px solid;
+    border: 1px solid;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
 }
-.result-card-low    { background: #f0fdf4; border-color: #86efac; }
-.result-card-medium { background: #fffbeb; border-color: #fcd34d; }
-.result-card-high   { background: #fff1f2; border-color: #fca5a5; }
+.result-card-low    { background: #f0fdf4; border-color: #bbf7d0; }
+.result-card-medium { background: #fffbeb; border-color: #fef08a; }
+.result-card-high   { background: #fef2f2; border-color: #fecaca; }
 
 .result-level {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     font-weight: 700;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
-    margin-bottom: 0.3rem;
-    font-family: 'DM Mono', monospace;
+    margin-bottom: 0.5rem;
+    font-family: 'JetBrains Mono', monospace;
 }
-.result-level-low    { color: #16a34a; }
-.result-level-medium { color: #d97706; }
-.result-level-high   { color: #dc2626; }
+.result-level-low    { color: #15803d; }
+.result-level-medium { color: #b45309; }
+.result-level-high   { color: #b91c1c; }
 
 .result-label {
-    font-size: 1.4rem;
+    font-size: 1.5rem;
     font-weight: 700;
-    color: #1a1f2e;
-    margin: 0 0 0.4rem 0;
-    letter-spacing: -0.02em;
+    color: #0f172a;
+    margin: 0 0 0.5rem 0;
 }
 .result-desc {
-    font-size: 0.82rem;
-    color: #4b5563;
+    font-size: 0.85rem;
+    color: #475569;
     line-height: 1.5;
     margin: 0;
 }
@@ -238,21 +123,19 @@ section[data-testid="stSidebar"] .stSlider > div > div > div {
 /* ── Probability Bars ── */
 .prob-container {
     background: #ffffff;
-    border: 1px solid #e5e8ef;
-    border-radius: 12px;
-    padding: 1.25rem 1.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
 }
 .prob-title {
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
     margin-bottom: 1rem;
-    font-family: 'DM Mono', monospace;
 }
 .prob-row {
-    margin-bottom: 0.9rem;
+    margin-bottom: 0.8rem;
 }
 .prob-label-row {
     display: flex;
@@ -260,167 +143,91 @@ section[data-testid="stSidebar"] .stSlider > div > div > div {
     align-items: center;
     margin-bottom: 0.3rem;
 }
-.prob-label     { font-size: 0.82rem; color: #374151; font-weight: 500; }
-.prob-label-bold { font-weight: 700; color: #1a1f2e; }
-.prob-pct       { font-family: 'DM Mono', monospace; font-size: 0.82rem; font-weight: 600; color: #1a1f2e; }
-.prob-bar-bg    { background: #e5e8ef; border-radius: 4px; height: 8px; overflow: hidden; }
+.prob-label      { font-size: 0.85rem; color: #475569; font-weight: 400; }
+.prob-label-bold { font-weight: 600; color: #0f172a; font-size: 0.85rem; }
+.prob-pct        { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 500; color: #0f172a; }
+.prob-bar-bg     { background: #f1f5f9; border-radius: 4px; height: 6px; overflow: hidden; }
 .prob-bar-low    { height: 100%; background: #22c55e; border-radius: 4px; }
 .prob-bar-medium { height: 100%; background: #f59e0b; border-radius: 4px; }
 .prob-bar-high   { height: 100%; background: #ef4444; border-radius: 4px; }
 
-.confidence-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin-top: 0.75rem;
-    padding: 5px 12px;
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
-    border-radius: 6px;
-    font-size: 0.78rem;
-    color: #15803d;
-    font-weight: 600;
-    font-family: 'DM Mono', monospace;
-}
-
-/* ── SHAP Intro Card ── */
+/* ── SHAP Info Box ── */
 .shap-info-card {
-    background: #eff6ff;
-    border: 1px solid #bfdbfe;
-    border-radius: 10px;
-    padding: 1rem 1.25rem;
-    margin-bottom: 1.25rem;
-    font-size: 0.83rem;
-    color: #374151;
-    line-height: 1.6;
-}
-.shap-info-title {
-    font-weight: 700;
-    color: #1d4ed8;
-    margin-bottom: 0.35rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 1rem;
     font-size: 0.85rem;
+    color: #475569;
 }
 .shap-legend {
     display: flex;
-    gap: 1.25rem;
-    margin-top: 0.6rem;
-    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 0.5rem;
 }
 .shap-legend-item {
     display: flex;
     align-items: center;
     gap: 0.4rem;
     font-size: 0.8rem;
-    color: #374151;
 }
-.dot-red  { width: 11px; height: 11px; background: #ef4444; border-radius: 2px; flex-shrink: 0; }
-.dot-blue { width: 11px; height: 11px; background: #3b82f6; border-radius: 2px; flex-shrink: 0; }
+.dot-red  { width: 8px; height: 8px; background: #ef4444; border-radius: 50%; }
+.dot-blue { width: 8px; height: 8px; background: #3b82f6; border-radius: 50%; }
 
 /* ── Driver Cards ── */
 .driver-group-title {
-    font-size: 0.78rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    margin-bottom: 0.6rem;
-    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
 }
-.driver-group-title-red  { color: #dc2626; }
-.driver-group-title-blue { color: #2563eb; }
+.driver-group-title-red  { color: #b91c1c; }
+.driver-group-title-blue { color: #1d4ed8; }
 
 .driver-card {
     background: #ffffff;
-    border: 1px solid #e5e8ef;
-    border-radius: 8px;
-    padding: 0.65rem 0.85rem;
-    margin-bottom: 0.45rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 0.6rem 0.8rem;
+    margin-bottom: 0.4rem;
     display: flex;
     align-items: center;
-    gap: 0.7rem;
-    border-left: 3px solid transparent;
+    gap: 0.75rem;
 }
-.driver-card-up   { border-left-color: #ef4444; }
-.driver-card-down { border-left-color: #3b82f6; }
-
 .driver-rank {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.7rem;
-    color: #9ca3af;
-    min-width: 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    min-width: 20px;
 }
 .driver-name {
-    font-size: 0.82rem;
+    font-size: 0.85rem;
     font-weight: 500;
-    color: #1a1f2e;
+    color: #1e293b;
     flex: 1;
-    line-height: 1.3;
 }
-.driver-pill {
-    font-size: 0.68rem;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 10px;
-}
-.driver-pill-up   { background: #fee2e2; color: #dc2626; }
-.driver-pill-down { background: #dbeafe; color: #2563eb; }
-
 .driver-val {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.76rem;
-    color: #6b7280;
-    min-width: 50px;
-    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 500;
 }
+.val-up { color: #ef4444; }
+.val-down { color: #3b82f6; }
 
-/* ── Info Box ── */
-.info-box {
-    background: #f9fafb;
-    border: 1px solid #e5e8ef;
-    border-radius: 8px;
-    padding: 0.8rem 1rem;
-    font-size: 0.81rem;
-    color: #4b5563;
-    line-height: 1.6;
+/* ── Streamlit Tabs Styling Overrides ── */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 2rem;
+    border-bottom: 1px solid #e2e8f0;
 }
-.info-box strong { color: #1a1f2e; }
-
-/* ── Metric Cards (engineered features) ── */
-.metric-mini {
-    background: #ffffff;
-    border: 1px solid #e5e8ef;
-    border-radius: 8px;
-    padding: 0.85rem 1rem;
-    margin-bottom: 0.5rem;
+.stTabs [data-baseweb="tab"] {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    height: auto;
 }
-.metric-mini-label {
-    font-size: 0.72rem;
+.stTabs [aria-selected="true"] {
     font-weight: 600;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: 0.2rem;
-}
-.metric-mini-val {
-    font-family: 'DM Mono', monospace;
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #1a1f2e;
 }
 
-/* ── Streamlit overrides ── */
-.stDataFrame      { border-radius: 8px; overflow: hidden; border: 1px solid #e5e8ef; }
-div[data-testid="stMetric"] { background: #fff; border: 1px solid #e5e8ef; border-radius: 8px; padding: 0.75rem; }
-.stAlert          { border-radius: 8px; }
-hr                { border-color: #e5e8ef !important; }
-.stPlotlyChart, .stPyplot { background: transparent !important; }
-
-/* Expander styling in sidebar */
-section[data-testid="stSidebar"] details {
-    background: #f9fafb;
-    border: 1px solid #e5e8ef;
-    border-radius: 8px;
-    margin-bottom: 0.5rem;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -430,10 +237,15 @@ section[data-testid="stSidebar"] details {
 # ──────────────────────────────────────────────
 @st.cache_resource
 def load_artifacts():
-    model             = joblib.load("xgb_model.pkl")
-    scaler            = joblib.load("scaler.pkl")
-    label_encoder     = joblib.load("label_encoder.pkl")
-    selected_features = joblib.load("selected_features.pkl")
+    # Placeholder error handling jika file pkl tidak ada untuk demo
+    try:
+        model             = joblib.load("xgb_model.pkl")
+        scaler            = joblib.load("scaler.pkl")
+        label_encoder     = joblib.load("label_encoder.pkl")
+        selected_features = joblib.load("selected_features.pkl")
+    except:
+        st.warning("Model artifacts belum ditemukan. Pastikan file .pkl tersedia di direktori yang sama.")
+        st.stop()
     return model, scaler, label_encoder, selected_features
 
 model, scaler, le, selected_features = load_artifacts()
@@ -441,30 +253,27 @@ model, scaler, le, selected_features = load_artifacts()
 STRESS_CONFIG = {
     0: {
         "label": "Stres Rendah",
-        "level": "LEVEL RENDAH",
+        "level": "Level Rendah",
         "css_class": "result-card-low",
         "level_class": "result-level-low",
-        "color": "#22c55e",
         "bar_class": "prob-bar-low",
-        "desc": "Kondisi mental kamu tergolong baik. Pertahankan pola istirahat, aktivitas, dan dukungan sosialmu.",
+        "desc": "Kondisi mental terpantau stabil. Pertahankan pola istirahat, aktivitas, dan dukungan sosial yang positif.",
     },
     1: {
         "label": "Stres Sedang",
-        "level": "LEVEL SEDANG",
+        "level": "Level Sedang",
         "css_class": "result-card-medium",
         "level_class": "result-level-medium",
-        "color": "#f59e0b",
         "bar_class": "prob-bar-medium",
-        "desc": "Ada beberapa faktor pemicu stres. Perhatikan kualitas tidur dan manajemen waktu belajarmu.",
+        "desc": "Terdapat beberapa indikasi pemicu stres. Perhatikan kualitas tidur dan manajemen beban akademik.",
     },
     2: {
         "label": "Stres Tinggi",
-        "level": "LEVEL TINGGI",
+        "level": "Level Tinggi",
         "css_class": "result-card-high",
         "level_class": "result-level-high",
-        "color": "#ef4444",
         "bar_class": "prob-bar-high",
-        "desc": "Tingkat stres cukup tinggi. Pertimbangkan untuk berbicara dengan konselor atau profesional kesehatan jiwa.",
+        "desc": "Tingkat stres terdeteksi cukup tinggi. Disarankan untuk berkonsultasi dengan layanan konseling akademik atau kesehatan jiwa.",
     },
 }
 
@@ -529,7 +338,6 @@ def patch_shap_for_xgb_multiclass():
     _OrigLoader.__init__ = _patched_init
     _OrigLoader._patched_for_multiclass = True
 
-
 @st.cache_resource
 def get_shap_explainer(_model):
     import shap
@@ -582,99 +390,48 @@ def build_input_row(raw):
 with st.sidebar:
     st.markdown("""
     <div class="sidebar-header">
-        <div class="sidebar-app-name">StressCheck</div>
-        <div class="sidebar-tagline">Prediksi tingkat stres mahasiswa berbasis AI</div>
+        <div class="sidebar-app-name">StressCheck AI</div>
+        <div class="sidebar-tagline">Analisis Kondisi Mahasiswa</div>
     </div>
     """, unsafe_allow_html=True)
 
     with st.expander("Psikologis", expanded=True):
-        anxiety_level         = st.slider("Tingkat Kecemasan",  0, 21, 10, help="0 = tidak cemas sama sekali, 21 = sangat cemas")
-        self_esteem           = st.slider("Harga Diri",          0, 30, 15, help="0 = sangat rendah, 30 = sangat tinggi")
-        mental_health_history = st.selectbox("Riwayat Masalah Mental", [0, 1],
-                                              format_func=lambda x: "Tidak ada" if x == 0 else "Ada riwayat")
-        depression            = st.slider("Tingkat Depresi",     0, 27, 10, help="0 = tidak ada, 27 = sangat berat")
+        anxiety_level         = st.slider("Tingkat Kecemasan",  0, 21, 10, help="0 = Tidak cemas, 21 = Sangat cemas")
+        self_esteem           = st.slider("Harga Diri",         0, 30, 15, help="0 = Sangat rendah, 30 = Sangat tinggi")
+        mental_health_history = st.selectbox("Riwayat Masalah Mental", [0, 1], format_func=lambda x: "Tidak ada" if x == 0 else "Ada riwayat")
+        depression            = st.slider("Tingkat Depresi",     0, 27, 10, help="0 = Tidak ada, 27 = Sangat berat")
 
     with st.expander("Kesehatan Fisik", expanded=False):
-        headache          = st.slider("Frekuensi Sakit Kepala", 0, 5, 2, help="0=tidak pernah, 5=sangat sering")
-        blood_pressure    = st.slider("Tekanan Darah",          1, 3, 2, help="1=rendah, 2=normal, 3=tinggi")
-        sleep_quality     = st.slider("Kualitas Tidur",         1, 5, 3, help="1=sangat buruk, 5=sangat baik")
-        breathing_problem = st.slider("Masalah Pernapasan",     0, 5, 1, help="0=tidak ada, 5=sangat sering")
+        headache          = st.slider("Frekuensi Sakit Kepala", 0, 5, 2)
+        blood_pressure    = st.slider("Tekanan Darah",          1, 3, 2, help="1 = Rendah, 2 = Normal, 3 = Tinggi")
+        sleep_quality     = st.slider("Kualitas Tidur",         1, 5, 3)
+        breathing_problem = st.slider("Masalah Pernapasan",     0, 5, 1)
 
     with st.expander("Lingkungan", expanded=False):
-        noise_level       = st.slider("Tingkat Kebisingan",        0, 5, 2, help="0=sangat tenang, 5=sangat bising")
-        living_conditions = st.slider("Kondisi Tempat Tinggal",    1, 5, 3, help="1=sangat buruk, 5=sangat baik")
-        safety            = st.slider("Rasa Aman di Lingkungan",   1, 5, 3, help="1=tidak aman, 5=sangat aman")
-        basic_needs       = st.slider("Pemenuhan Kebutuhan Dasar", 1, 5, 3, help="1=tidak terpenuhi, 5=terpenuhi")
+        noise_level       = st.slider("Tingkat Kebisingan",      0, 5, 2)
+        living_conditions = st.slider("Kondisi Tempat Tinggal",  1, 5, 3)
+        safety            = st.slider("Rasa Aman di Lingkungan", 1, 5, 3)
+        basic_needs       = st.slider("Kebutuhan Dasar",         1, 5, 3)
 
     with st.expander("Akademik", expanded=False):
-        academic_performance         = st.slider("Performa Akademik",    1, 5, 3, help="1=sangat buruk, 5=sangat baik")
-        study_load                   = st.slider("Beban Belajar",        1, 5, 3, help="1=sangat ringan, 5=sangat berat")
-        teacher_student_relationship = st.slider("Hub. Dosen-Mahasiswa", 1, 5, 3, help="1=sangat buruk, 5=sangat baik")
-        future_career_concerns       = st.slider("Kekhawatiran Karir",   1, 5, 3, help="1=tidak khawatir, 5=sangat khawatir")
+        academic_performance         = st.slider("Performa Akademik",    1, 5, 3)
+        study_load                   = st.slider("Beban Belajar",        1, 5, 3)
+        teacher_student_relationship = st.slider("Hub. Dosen-Mahasiswa", 1, 5, 3)
+        future_career_concerns       = st.slider("Kekhawatiran Karir",   1, 5, 3)
 
     with st.expander("Sosial", expanded=False):
-        social_support             = st.slider("Dukungan Sosial",           0, 3, 2, help="0=tidak ada, 3=sangat banyak")
-        peer_pressure              = st.slider("Tekanan Teman Sebaya",      1, 5, 3, help="1=tidak ada, 5=sangat tinggi")
-        extracurricular_activities = st.slider("Aktivitas Ekstrakurikuler", 0, 5, 2, help="0=tidak ada, 5=sangat aktif")
-        bullying                   = st.slider("Tingkat Perundungan",       0, 5, 1, help="0=tidak ada, 5=sangat parah")
+        social_support             = st.slider("Dukungan Sosial",           0, 3, 2)
+        peer_pressure              = st.slider("Tekanan Teman Sebaya",      1, 5, 3)
+        extracurricular_activities = st.slider("Aktivitas Ekstrakurikuler", 0, 5, 2)
+        bullying                   = st.slider("Tingkat Perundungan",       0, 5, 1)
 
-    st.markdown("<div style='height:0.75rem'></div>", unsafe_allow_html=True)
-    predict_btn = st.button("Analisis Sekarang", use_container_width=True, type="primary")
-    st.markdown("""
-    <div style='margin-top:0.75rem;font-size:0.73rem;color:#9ca3af;text-align:center;line-height:1.5;'>
-        Geser slider sesuai kondisimu saat ini, lalu tekan tombol di atas.
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.button("Jalankan Prediksi", use_container_width=True, type="primary")
 
 
 # ══════════════════════════════════════════════
-# MAIN CONTENT
+# DATA PROCESSING (Pre-computations)
 # ══════════════════════════════════════════════
-
-# ── Hero ──
-st.markdown("""
-<div class="hero">
-    <div class="hero-text">
-        <div class="hero-badge">XGBoost + SHAP · Research Tool</div>
-        <h1>Prediksi Tingkat Stres Mahasiswa</h1>
-        <p>
-            Isi data kondisimu di sidebar kiri, lalu lihat hasil prediksi beserta
-            penjelasan faktor-faktor yang paling mempengaruhi tingkat stresmu.
-            Semua analisis dijalankan secara lokal, data tidak dikirim ke mana pun.
-        </p>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ── How to use steps ──
-st.markdown("""
-<div class="steps-row">
-    <div class="step-item">
-        <div class="step-num">1</div>
-        <div>
-            <div class="step-title">Isi Data di Sidebar</div>
-            <div class="step-desc">Geser slider sesuai kondisi psikologis, fisik, akademik, dan sosialmu saat ini.</div>
-        </div>
-    </div>
-    <div class="step-item">
-        <div class="step-num">2</div>
-        <div>
-            <div class="step-title">Klik Analisis</div>
-            <div class="step-desc">Tekan tombol "Analisis Sekarang" untuk menjalankan model prediksi XGBoost.</div>
-        </div>
-    </div>
-    <div class="step-item">
-        <div class="step-num">3</div>
-        <div>
-            <div class="step-title">Baca Hasil & Penjelasan</div>
-            <div class="step-desc">Lihat tingkat stres, probabilitas per kelas, dan faktor-faktor terbesar melalui SHAP.</div>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-
-# ── Proses data input ──
 raw_input = {
     "anxiety_level": anxiety_level, "self_esteem": self_esteem,
     "mental_health_history": mental_health_history, "depression": depression,
@@ -690,307 +447,174 @@ raw_input = {
 }
 df_input_raw    = build_input_row(raw_input)
 df_input_scaled = pd.DataFrame(scaler.transform(df_input_raw), columns=selected_features)
-prediction       = model.predict(df_input_scaled)
+prediction      = model.predict(df_input_scaled)
 prediction_proba = model.predict_proba(df_input_scaled)
-pred_class       = int(prediction[0])
-cfg              = STRESS_CONFIG[pred_class]
+pred_class      = int(prediction[0])
+cfg             = STRESS_CONFIG[pred_class]
 
 
 # ══════════════════════════════════════════════
-# SECTION 1: HASIL PREDIKSI
+# MAIN CONTENT (Tabs Layout)
 # ══════════════════════════════════════════════
-st.markdown("""
-<div class="section-header">
-    <span class="section-tag">01</span>
-    <span class="section-title">Hasil Prediksi</span>
-    <span class="section-subtitle">Berdasarkan 23 faktor input</span>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("### Prediksi Tingkat Stres Mahasiswa")
+st.markdown("<p style='color:#64748b; font-size:0.9rem; margin-top:-0.5rem;'>Sesuaikan parameter di sidebar untuk melihat pembaruan prediksi secara real-time.</p>", unsafe_allow_html=True)
 
-col_result, col_prob = st.columns([1, 1.5], gap="large")
+tab1, tab2, tab3 = st.tabs(["Hasil Analisis", "Detail Model (SHAP)", "Ringkasan Data"])
 
-with col_result:
-    st.markdown(f"""
-    <div class="{cfg['css_class']} result-card">
-        <div class="result-level {cfg['level_class']}">{cfg['level']}</div>
-        <div class="result-label">{cfg['label']}</div>
-        <p class="result-desc">{cfg['desc']}</p>
-    </div>
-    """, unsafe_allow_html=True)
+# ── TAB 1: HASIL PREDIKSI ──
+with tab1:
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_result, col_prob = st.columns([1, 1.2], gap="large")
 
-with col_prob:
-    proba_labels  = ["Stres Rendah", "Stres Sedang", "Stres Tinggi"]
-    bar_classes   = ["prob-bar-low", "prob-bar-medium", "prob-bar-high"]
-    confidence    = max(prediction_proba[0])
-
-    st.markdown(f"""
-    <div class="prob-container">
-        <div class="prob-title">Distribusi Probabilitas Kelas</div>
-    """, unsafe_allow_html=True)
-
-    for i, (lbl, bar_cls) in enumerate(zip(proba_labels, bar_classes)):
-        pct    = prediction_proba[0][i]
-        w      = int(pct * 100)
-        bold   = "prob-label-bold" if i == pred_class else "prob-label"
+    with col_result:
         st.markdown(f"""
-        <div class="prob-row">
-            <div class="prob-label-row">
-                <span class="{bold}">{lbl}</span>
-                <span class="prob-pct">{pct:.1%}</span>
-            </div>
-            <div class="prob-bar-bg">
-                <div class="{bar_cls}" style="width:{w}%"></div>
-            </div>
+        <div class="section-title">Kesimpulan Model</div>
+        <div class="{cfg['css_class']} result-card">
+            <div class="result-level {cfg['level_class']}">{cfg['level']}</div>
+            <div class="result-label">{cfg['label']}</div>
+            <p class="result-desc">{cfg['desc']}</p>
         </div>
         """, unsafe_allow_html=True)
 
-    st.markdown(f"""
-        <div class="confidence-badge">Keyakinan model: {confidence:.1%}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    with col_prob:
+        proba_labels  = ["Stres Rendah", "Stres Sedang", "Stres Tinggi"]
+        bar_classes   = ["prob-bar-low", "prob-bar-medium", "prob-bar-high"]
 
+        st.markdown(f"""
+        <div class="section-title">Probabilitas Kelas</div>
+        <div class="prob-container">
+        """, unsafe_allow_html=True)
 
-# ══════════════════════════════════════════════
-# SECTION 2: SHAP EXPLANATION
-# ══════════════════════════════════════════════
-st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
-st.markdown("""
-<div class="section-header">
-    <span class="section-tag">02</span>
-    <span class="section-title">Penjelasan Prediksi (SHAP)</span>
-    <span class="section-subtitle">Faktor yang paling mempengaruhi hasil</span>
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<div class="shap-info-card">
-    <div class="shap-info-title">Cara membaca penjelasan SHAP</div>
-    SHAP (SHapley Additive exPlanations) menghitung seberapa besar kontribusi tiap faktor terhadap prediksi.
-    Faktor dengan nilai absolut lebih besar berarti pengaruhnya lebih dominan.
-    <div class="shap-legend">
-        <div class="shap-legend-item">
-            <div class="dot-red"></div>
-            <span><strong>Merah</strong> — mendorong prediksi ke stres lebih tinggi</span>
-        </div>
-        <div class="shap-legend-item">
-            <div class="dot-blue"></div>
-            <span><strong>Biru</strong> — mendorong prediksi ke stres lebih rendah</span>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-if hasattr(model, "get_booster"):
-    try:
-        import shap
-
-        shap_explainer = get_shap_explainer(model)
-        shap_vals      = shap_explainer.shap_values(df_input_scaled)
-
-        if isinstance(shap_vals, list):
-            sv = shap_vals[pred_class][0]
-            ev = shap_explainer.expected_value[pred_class]
-        else:
-            sv = shap_vals[0, :, pred_class]
-            ev = (shap_explainer.expected_value[pred_class]
-                  if hasattr(shap_explainer.expected_value, "__len__")
-                  else shap_explainer.expected_value)
-
-        # ── Top Driver Cards ──────────────────────────────────────
-        shap_series  = pd.Series(sv, index=selected_features)
-        top_positive = shap_series[shap_series > 0].sort_values(ascending=False).head(5)
-        top_negative = shap_series[shap_series < 0].sort_values(ascending=True).head(5)
-
-        col_up, col_down = st.columns(2, gap="large")
-
-        with col_up:
-            st.markdown("""
-            <div class="driver-group-title driver-group-title-red">Meningkatkan stres</div>
-            """, unsafe_allow_html=True)
-            for rank, (feat, val) in enumerate(top_positive.items(), 1):
-                feat_label = FEATURE_LABELS.get(feat, feat)
-                st.markdown(f"""
-                <div class="driver-card driver-card-up">
-                    <span class="driver-rank">#{rank}</span>
-                    <span class="driver-name">{feat_label}</span>
-                    <span class="driver-pill driver-pill-up">Naik</span>
-                    <span class="driver-val">+{val:.3f}</span>
+        for i, (lbl, bar_cls) in enumerate(zip(proba_labels, bar_classes)):
+            pct    = prediction_proba[0][i]
+            w      = int(pct * 100)
+            bold   = "prob-label-bold" if i == pred_class else "prob-label"
+            st.markdown(f"""
+            <div class="prob-row">
+                <div class="prob-label-row">
+                    <span class="{bold}">{lbl}</span>
+                    <span class="prob-pct">{pct:.1%}</span>
                 </div>
-                """, unsafe_allow_html=True)
-
-        with col_down:
-            st.markdown("""
-            <div class="driver-group-title driver-group-title-blue">Menurunkan stres</div>
+                <div class="prob-bar-bg">
+                    <div class="{bar_cls}" style="width:{w}%"></div>
+                </div>
+            </div>
             """, unsafe_allow_html=True)
-            if top_negative.empty:
-                st.markdown("""
-                <div class="info-box">Tidak ada faktor yang secara signifikan menurunkan stres saat ini.</div>
-                """, unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ── TAB 2: SHAP EXPLANATION ──
+with tab2:
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("""
+    <div class="shap-info-card">
+        <strong>Interpretasi Model (SHAP)</strong><br>
+        Menampilkan fitur mana yang paling kuat mendorong hasil prediksi. 
+        <div class="shap-legend">
+            <div class="shap-legend-item"><div class="dot-red"></div> Mendorong stres lebih tinggi</div>
+            <div class="shap-legend-item"><div class="dot-blue"></div> Mendorong stres lebih rendah</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if hasattr(model, "get_booster"):
+        try:
+            import shap
+            shap_explainer = get_shap_explainer(model)
+            shap_vals      = shap_explainer.shap_values(df_input_scaled)
+
+            if isinstance(shap_vals, list):
+                sv = shap_vals[pred_class][0]
+                ev = shap_explainer.expected_value[pred_class]
             else:
-                for rank, (feat, val) in enumerate(top_negative.items(), 1):
-                    feat_label = FEATURE_LABELS.get(feat, feat)
-                    st.markdown(f"""
-                    <div class="driver-card driver-card-down">
-                        <span class="driver-rank">#{rank}</span>
-                        <span class="driver-name">{feat_label}</span>
-                        <span class="driver-pill driver-pill-down">Turun</span>
-                        <span class="driver-val">{val:.3f}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                sv = shap_vals[0, :, pred_class]
+                ev = (shap_explainer.expected_value[pred_class]
+                      if hasattr(shap_explainer.expected_value, "__len__")
+                      else shap_explainer.expected_value)
 
-        st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
+            shap_series  = pd.Series(sv, index=selected_features)
+            top_positive = shap_series[shap_series > 0].sort_values(ascending=False).head(5)
+            top_negative = shap_series[shap_series < 0].sort_values(ascending=True).head(5)
 
-        # ── SHAP Bar Chart ────────────────────────────────────────
-        st.markdown("""
-        <div class="section-header" style="margin-top:0.25rem;">
-            <span class="section-tag">02A</span>
-            <span class="section-title">Kontribusi Semua Faktor</span>
-            <span class="section-subtitle">Semakin panjang batang, semakin besar pengaruhnya</span>
-        </div>
-        """, unsafe_allow_html=True)
+            col_up, col_down = st.columns(2, gap="medium")
 
-        sorted_idx   = np.argsort(np.abs(sv))
-        sorted_feats = [FEATURE_LABELS.get(selected_features[i], selected_features[i]) for i in sorted_idx]
-        sorted_vals  = sv[sorted_idx]
-        bar_colors   = ["#ef4444" if v > 0 else "#3b82f6" for v in sorted_vals]
+            with col_up:
+                st.markdown("<div class='driver-group-title driver-group-title-red'>Top Faktor Pendorong (+)</div>", unsafe_allow_html=True)
+                if top_positive.empty:
+                    st.info("Tidak ada pendorong signifikan.")
+                else:
+                    for rank, (feat, val) in enumerate(top_positive.items(), 1):
+                        st.markdown(f"""
+                        <div class="driver-card">
+                            <span class="driver-rank">#{rank}</span>
+                            <span class="driver-name">{FEATURE_LABELS.get(feat, feat)}</span>
+                            <span class="driver-val val-up">+{val:.3f}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
 
-        fig, ax = plt.subplots(figsize=(9, 6.5))
-        fig.patch.set_facecolor("#f9fafb")
-        ax.set_facecolor("#f9fafb")
+            with col_down:
+                st.markdown("<div class='driver-group-title driver-group-title-blue'>Top Faktor Penekan (-)</div>", unsafe_allow_html=True)
+                if top_negative.empty:
+                    st.info("Tidak ada penekan signifikan.")
+                else:
+                    for rank, (feat, val) in enumerate(top_negative.items(), 1):
+                        st.markdown(f"""
+                        <div class="driver-card">
+                            <span class="driver-rank">#{rank}</span>
+                            <span class="driver-name">{FEATURE_LABELS.get(feat, feat)}</span>
+                            <span class="driver-val val-down">{val:.3f}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
 
-        bars = ax.barh(sorted_feats, sorted_vals, color=bar_colors, height=0.6,
-                       edgecolor="none", zorder=3, alpha=0.88)
+            # Waterfall Chart
+            st.markdown("<div class='section-title' style='margin-top: 2rem;'>Alur Prediksi (Waterfall Chart)</div>", unsafe_allow_html=True)
+            
+            exp = shap.Explanation(
+                values=sv,
+                base_values=float(ev),
+                data=df_input_scaled.iloc[0].values,
+                feature_names=[FEATURE_LABELS.get(f, f) for f in selected_features],
+            )
+            fig, ax = plt.subplots(figsize=(8, 5))
+            fig.patch.set_facecolor("#ffffff")
+            shap.plots.waterfall(exp, show=False, max_display=12)
+            
+            # Matplotlib styling for light mode
+            plt.gca().set_facecolor("#ffffff")
+            plt.gca().tick_params(colors="#1f2937")
+            for spine in plt.gca().spines.values():
+                spine.set_edgecolor("#e2e8f0")
+            
+            plt.tight_layout()
+            st.pyplot(fig)
+            plt.close(fig)
 
-        for bar, val in zip(bars, sorted_vals):
-            x_pos = val + (0.002 if val >= 0 else -0.002)
-            ha    = "left" if val >= 0 else "right"
-            ax.text(x_pos, bar.get_y() + bar.get_height() / 2,
-                    f"{val:+.3f}", va="center", ha=ha,
-                    fontsize=7, color="#374151", alpha=0.85)
+        except Exception as e:
+            st.error(f"Grafik SHAP tidak dapat ditampilkan: {e}")
 
-        ax.axvline(0, color="#9ca3af", linewidth=0.8, zorder=2)
-        ax.set_xlabel("SHAP Value — kontribusi terhadap prediksi", color="#4b5563", fontsize=8.5, labelpad=8)
-        ax.tick_params(axis="y", colors="#374151", labelsize=8)
-        ax.tick_params(axis="x", colors="#9ca3af", labelsize=7.5)
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.spines["left"].set_color("#e5e8ef")
-        ax.spines["bottom"].set_color("#e5e8ef")
-        ax.grid(axis="x", color="#e5e8ef", linestyle="--", zorder=1, linewidth=0.6)
 
-        red_patch  = mpatches.Patch(color="#ef4444", label="Mendorong stres naik", alpha=0.88)
-        blue_patch = mpatches.Patch(color="#3b82f6", label="Mendorong stres turun", alpha=0.88)
-        ax.legend(handles=[red_patch, blue_patch], loc="lower right",
-                  framealpha=0.8, labelcolor="#374151", fontsize=7.5,
-                  facecolor="#f9fafb", edgecolor="#e5e8ef")
+# ── TAB 3: DATA INPUT SUMMARY ──
+with tab3:
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_a, col_b = st.columns([2, 1], gap="large")
 
-        plt.tight_layout()
-        st.pyplot(fig, transparent=False)
-        plt.close(fig)
-
-        # ── Waterfall ─────────────────────────────────────────────
-        st.markdown("""
-        <div class="section-header" style="margin-top:1.25rem;">
-            <span class="section-tag">02B</span>
-            <span class="section-title">Waterfall — Alur Pembentukan Prediksi</span>
-            <span class="section-subtitle">Dari nilai dasar model hingga prediksi akhirmu</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-        st.markdown("""
-        <div class="info-box" style="margin-bottom:1rem;">
-            <strong>Cara membaca:</strong> Mulai dari nilai dasar model (E[f(x)]), setiap baris
-            menunjukkan satu faktor yang "mendorong" prediksi naik (merah) atau turun (biru),
-            hingga mencapai prediksi akhir f(x) di bagian atas.
-        </div>
-        """, unsafe_allow_html=True)
-
-        exp = shap.Explanation(
-            values=sv,
-            base_values=float(ev),
-            data=df_input_scaled.iloc[0].values,
-            feature_names=[FEATURE_LABELS.get(f, f) for f in selected_features],
+    with col_a:
+        st.markdown("<div class='section-title'>Parameter Input</div>", unsafe_allow_html=True)
+        raw_df = pd.DataFrame(
+            [(FEATURE_LABELS.get(k, k), v) for k, v in raw_input.items()],
+            columns=["Faktor / Parameter", "Nilai Input"]
         )
-        fig2, _ = plt.subplots(figsize=(10, 6.5))
-        fig2.patch.set_facecolor("#f9fafb")
-        shap.plots.waterfall(exp, show=False, max_display=15)
-        ax2 = plt.gca()
-        ax2.set_facecolor("#f9fafb")
-        ax2.tick_params(colors="#374151")
-        for spine in ax2.spines.values():
-            spine.set_edgecolor("#e5e8ef")
-        plt.tight_layout()
-        st.pyplot(fig2, transparent=False)
-        plt.close(fig2)
+        st.dataframe(raw_df, use_container_width=True, hide_index=True, height=400)
 
-    except Exception as e:
-        st.error(f"SHAP gagal dijalankan: {e}")
-        st.code(
-            "Pastikan requirements.txt menggunakan:\n"
-            "  shap==0.47.0\n"
-            "  numpy==1.26.4",
-            language="text",
-        )
-
-
-# ══════════════════════════════════════════════
-# SECTION 3: DATA INPUT SUMMARY
-# ══════════════════════════════════════════════
-st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
-st.markdown("""
-<div class="section-header">
-    <span class="section-tag">03</span>
-    <span class="section-title">Ringkasan Data Input</span>
-    <span class="section-subtitle">Nilai yang dimasukkan + fitur turunan otomatis</span>
-</div>
-""", unsafe_allow_html=True)
-
-col_a, col_b = st.columns([2.2, 1], gap="large")
-
-with col_a:
-    raw_df = pd.DataFrame(
-        [(FEATURE_LABELS.get(k, k), v) for k, v in raw_input.items()],
-        columns=["Faktor", "Nilai"]
-    )
-    st.dataframe(raw_df, use_container_width=True, hide_index=True, height=300)
-
-with col_b:
-    st.markdown("""
-    <div style='font-size:0.72rem;font-weight:700;color:#6b7280;text-transform:uppercase;
-                letter-spacing:0.08em;margin-bottom:0.65rem;font-family:DM Mono,monospace;'>
-        Fitur Turunan
-    </div>
-    """, unsafe_allow_html=True)
-
-    engineered = {
-        "academic_stress_index":     df_input_raw["academic_stress_index"].values[0],
-        "environment_quality_index": df_input_raw["environment_quality_index"].values[0],
-        "social_stress_score":       df_input_raw["social_stress_score"].values[0],
-    }
-    for feat, val in engineered.items():
-        label = FEATURE_LABELS.get(feat, feat)
-        st.markdown(f"""
-        <div class="metric-mini">
-            <div class="metric-mini-label">{label}</div>
-            <div class="metric-mini-val">{val:.4f}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class="info-box" style="margin-top:0.5rem;">
-        Fitur-fitur ini dihitung otomatis dari input kamu menggunakan formula berbasis bobot yang
-        telah dikalibrasi pada dataset pelatihan.
-    </div>
-    """, unsafe_allow_html=True)
-
-
-# ── Footer ──
-st.markdown("""
-<div style='text-align:center;margin-top:2.5rem;padding-top:1.25rem;
-            border-top:1px solid #e5e8ef;'>
-    <span style='font-family:DM Mono,monospace;font-size:0.72rem;color:#9ca3af;letter-spacing:0.06em;'>
-        Model: XGBoost &nbsp;·&nbsp; Explainability: SHAP TreeExplainer
-        &nbsp;·&nbsp; Framework: CRISP-DM &nbsp;·&nbsp; UI: Streamlit
-    </span>
-</div>
-""", unsafe_allow_html=True)
+    with col_b:
+        st.markdown("<div class='section-title'>Fitur Kalkulasi</div>", unsafe_allow_html=True)
+        engineered = {
+            "academic_stress_index":     df_input_raw["academic_stress_index"].values[0],
+            "environment_quality_index": df_input_raw["environment_quality_index"].values[0],
+            "social_stress_score":       df_input_raw["social_stress_score"].values[0],
+        }
+        for feat, val in engineered.items():
+            st.metric(label=FEATURE_LABELS.get(feat, feat), value=f"{val:.3f}")
+        
+        st.caption("Fitur-fitur ini dihasilkan secara otomatis dari data sidebar berdasarkan pembobotan algoritma untuk diteruskan ke dalam model XGBoost.")
