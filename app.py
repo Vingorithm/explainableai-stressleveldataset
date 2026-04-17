@@ -9,13 +9,13 @@ import builtins
 import ast
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-import altair as alt  # <-- Ditambahkan untuk visualisasi yang lebih baik
+import altair as alt
 
 # ──────────────────────────────────────────────
 # PAGE CONFIG
 # ──────────────────────────────────────────────
 st.set_page_config(
-    page_title="StressCheck AI - Skripsi Kevin P. Tanamas",
+    page_title="Prediksi Stress Mahasiswa - 220711789",
     page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -186,40 +186,40 @@ def build_input_row(raw):
 with st.sidebar:
     st.markdown("""
     <div class="sidebar-header">
-        <div class="sidebar-app-name">StressCheck AI</div>
+        <div class="sidebar-app-name">Prediksi Stress Mahasiswa</div>
         <div class="sidebar-tagline">Explainable AI untuk Prediksi Tingkat Stres Mahasiswa</div>
     </div>
     """, unsafe_allow_html=True)
 
-    with st.expander("Psikologis", expanded=True):
-        anxiety_level         = st.slider("Kecemasan", 0, 21, 10)
-        self_esteem           = st.slider("Harga Diri", 0, 30, 15)
-        mental_health_history = st.selectbox("Riwayat Mental", [0, 1], format_func=lambda x: "Tidak ada" if x == 0 else "Ada riwayat")
-        depression            = st.slider("Depresi", 0, 27, 10)
+    with st.expander("🧠 Psikologis", expanded=True):
+        anxiety_level         = st.slider("Kecemasan", 0, 21, 10, help="Skala 0 (Tidak cemas sama sekali) hingga 21 (Sangat cemas/Kecemasan berat)")
+        self_esteem           = st.slider("Harga Diri", 0, 30, 15, help="Skala 0 (Sangat rendah/Tidak percaya diri) hingga 30 (Sangat tinggi)")
+        mental_health_history = st.selectbox("Riwayat Mental", [0, 1], format_func=lambda x: "Tidak ada" if x == 0 else "Ada riwayat", help="0 = Tidak pernah memiliki masalah mental. 1 = Memiliki riwayat masalah mental sebelumnya.")
+        depression            = st.slider("Depresi", 0, 27, 10, help="Skala 0 (Tidak ada gejala depresi) hingga 27 (Depresi sangat berat)")
 
-    with st.expander("Kesehatan Fisik", expanded=False):
-        headache          = st.slider("Sakit Kepala", 0, 5, 2)
-        blood_pressure    = st.slider("Tekanan Darah", 1, 3, 2, help="1=Rendah, 2=Normal, 3=Tinggi")
-        sleep_quality     = st.slider("Kualitas Tidur", 1, 5, 3)
-        breathing_problem = st.slider("Pernapasan", 0, 5, 1)
+    with st.expander("🩺 Kesehatan Fisik", expanded=False):
+        headache          = st.slider("Sakit Kepala", 0, 5, 2, help="Frekuensi: 0 (Tidak pernah) hingga 5 (Sangat sering / hampir setiap hari)")
+        blood_pressure    = st.slider("Tekanan Darah", 1, 3, 2, help="Kondisi: 1 (Hipotensi/Rendah), 2 (Normal), 3 (Hipertensi/Tinggi)")
+        sleep_quality     = st.slider("Kualitas Tidur", 1, 5, 3, help="Skala 1 (Sangat buruk / insomnia) hingga 5 (Sangat nyenyak dan berkualitas)")
+        breathing_problem = st.slider("Pernapasan", 0, 5, 1, help="Gangguan napas/sesak: 0 (Tidak pernah bermasalah) hingga 5 (Sering bermasalah/sesak)")
 
-    with st.expander("Lingkungan", expanded=False):
-        noise_level       = st.slider("Kebisingan", 0, 5, 2)
-        living_conditions = st.slider("Kondisi Tempat", 1, 5, 3)
-        safety            = st.slider("Rasa Aman", 1, 5, 3)
-        basic_needs       = st.slider("Kebutuhan Dasar", 1, 5, 3)
+    with st.expander("🏠 Lingkungan", expanded=False):
+        noise_level       = st.slider("Kebisingan", 0, 5, 2, help="Skala 0 (Lingkungan sangat tenang) hingga 5 (Sangat bising / mengganggu)")
+        living_conditions = st.slider("Kondisi Tempat", 1, 5, 3, help="Kelayakan: 1 (Sangat buruk/tidak layak) hingga 5 (Sangat baik dan nyaman)")
+        safety            = st.slider("Rasa Aman", 1, 5, 3, help="Skala 1 (Sangat merasa tidak aman) hingga 5 (Sangat aman dari gangguan)")
+        basic_needs       = st.slider("Kebutuhan Dasar", 1, 5, 3, help="Pemenuhan makan/minum/fasilitas: 1 (Sering tidak terpenuhi) hingga 5 (Selalu terpenuhi dengan baik)")
 
-    with st.expander("Akademik", expanded=False):
-        academic_performance         = st.slider("Performa", 1, 5, 3)
-        study_load                   = st.slider("Beban Belajar", 1, 5, 3)
-        teacher_student_relationship = st.slider("Hub. Dosen", 1, 5, 3)
-        future_career_concerns       = st.slider("Khawatir Karir", 1, 5, 3)
+    with st.expander("📚 Akademik", expanded=False):
+        academic_performance         = st.slider("Performa", 1, 5, 3, help="Kinerja akademik: 1 (Sangat buruk/IPK rendah) hingga 5 (Sangat baik/IPK sangat tinggi)")
+        study_load                   = st.slider("Beban Belajar", 1, 5, 3, help="Skala 1 (Beban tugas sangat ringan) hingga 5 (Beban tugas sangat berat)")
+        teacher_student_relationship = st.slider("Hub. Dosen", 1, 5, 3, help="Interaksi dengan dosen: 1 (Sangat buruk/sering konflik) hingga 5 (Sangat baik/suportif)")
+        future_career_concerns       = st.slider("Khawatir Karir", 1, 5, 3, help="Kecemasan masa depan: 1 (Tidak khawatir sama sekali) hingga 5 (Sangat cemas akan karir)")
 
-    with st.expander("Sosial", expanded=False):
-        social_support             = st.slider("Dukungan Sosial", 0, 3, 2)
-        peer_pressure              = st.slider("Tekanan Teman", 1, 5, 3)
-        extracurricular_activities = st.slider("Ekskul", 0, 5, 2)
-        bullying                   = st.slider("Perundungan", 0, 5, 1)
+    with st.expander("👥 Sosial", expanded=False):
+        social_support             = st.slider("Dukungan Sosial", 0, 3, 2, help="Tingkat dukungan keluarga/teman: 0 (Tidak ada) hingga 3 (Dukungan penuh)")
+        peer_pressure              = st.slider("Tekanan Teman", 1, 5, 3, help="Tuntutan pertemanan (Peer pressure): 1 (Tidak ada tekanan) hingga 5 (Tekanan sangat tinggi)")
+        extracurricular_activities = st.slider("Ekskul", 0, 5, 2, help="Keterlibatan organisasi/ekskul: 0 (Tidak aktif sama sekali) hingga 5 (Sangat aktif/sibuk)")
+        bullying                   = st.slider("Perundungan", 0, 5, 1, help="Tingkat perundungan (Bullying): 0 (Tidak pernah mengalami) hingga 5 (Sering menjadi korban)")
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.button("Update Prediksi", use_container_width=True, type="primary")
@@ -228,9 +228,9 @@ with st.sidebar:
     st.markdown("<hr style='margin: 2rem 0 1rem 0;'>", unsafe_allow_html=True)
     st.markdown("""
     <div style="text-align: center; color: #64748b; font-size: 0.8rem; line-height: 1.5;">
-        <b>Penelitian Skripsi</b><br>
+        <b>Penelitian Tugas Akhir</b><br>
         Kevin Philips Tanamas<br>
-        <span style="font-family: 'JetBrains Mono', monospace;">NIM: 220711789</span>
+        <span style="font-family: 'JetBrains Mono', monospace;">NPM: 220711789</span>
     </div>
     """, unsafe_allow_html=True)
 
