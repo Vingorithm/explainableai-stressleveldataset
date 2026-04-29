@@ -10,10 +10,9 @@ import ast
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import altair as alt
-from datetime import datetime
 
 # ──────────────────────────────────────────────
-# PAGE CONFIG & SESSION STATE
+# PAGE CONFIG
 # ──────────────────────────────────────────────
 st.set_page_config(
     page_title="Prediksi Stress Mahasiswa - 220711789",
@@ -21,10 +20,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-# Inisialisasi session state untuk riwayat komparasi "What-If"
-if "history" not in st.session_state:
-    st.session_state.history = []
 
 # ──────────────────────────────────────────────
 # CUSTOM CSS – Light Theme
@@ -35,7 +30,7 @@ st.markdown("""
 
 html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
-    color: #1f2937; /* Diperbaiki dari #fffff */
+    color: #fffff;
 }
 .stApp { background: #f8fafc; }
 .block-container { padding-top: 1.5rem; padding-bottom: 2rem; max-width: 1100px; }
@@ -88,11 +83,6 @@ section[data-testid="stSidebar"] label { font-size: 0.85rem !important; font-wei
 .val-up { color: #ef4444; }
 .val-down { color: #3b82f6; }
 
-/* Recommendation Box */
-.recommendation-box { background: #e0f2fe; border-left: 4px solid #0284c7; padding: 1rem; border-radius: 0 8px 8px 0; margin-top: 1rem; }
-.recommendation-title { font-size: 0.9rem; font-weight: 700; color: #0369a1; margin-bottom: 0.3rem; }
-.recommendation-text { font-size: 0.85rem; color: #0c4a6e; line-height: 1.5; }
-
 /* Metrics Custom */
 .thesis-metric-box { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.01); }
 .thesis-metric-title { font-size: 0.8rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
@@ -105,20 +95,57 @@ section[data-testid="stSidebar"] label { font-size: 0.85rem !important; font-wei
 </style>
 """, unsafe_allow_html=True)
 
+# === HELPER: Konversi skala UI (1-5) ke skala dataset asli ===
+def ui_to_native(ui_value: int, native_min: int, native_max: int) -> int:
+    """
+    Konversi nilai slider UI (skala 1-5) ke skala asli dataset.
+    Pemetaan linear: 1 -> native_min, 5 -> native_max.
 
-# ──────────────────────────────────────────────
-# DICTIONARY REKOMENDASI (Prescriptive Analytics)
-# ──────────────────────────────────────────────
-ADVICE_MAP = {
-    "sleep_quality": "Kualitas tidur yang buruk merupakan penyumbang utama stres. Pertimbangkan untuk menerapkan *sleep hygiene*, membatasi kafein setelah sore hari, dan menjaga jadwal tidur yang konsisten.",
-    "study_load": "Beban belajar terlihat membebani. Cobalah teknik manajemen waktu seperti Pomodoro, atau bicarakan dengan penasihat akademik mengenai pengaturan SKS semester depan.",
-    "anxiety_level": "Tingkat kecemasan menjadi faktor pendorong utama. Berlatih teknik relaksasi (seperti pernapasan dalam atau *mindfulness*) dapat membantu. Jangan ragu menghubungi layanan konseling kampus.",
-    "future_career_concerns": "Kekhawatiran akan karir menyumbang stres secara signifikan. Mengunjungi pusat pengembangan karir kampus atau berdiskusi dengan mentor/alumni mungkin bisa memberikan kejelasan arah.",
-    "peer_pressure": "Tekanan teman sebaya terdeteksi tinggi. Fokuslah pada *boundaries* (batasan) pribadi dan kelilingi diri dengan lingkungan pertemanan yang lebih suportif secara emosional.",
-    "depression": "Indikator depresi muncul sebagai faktor dominan. Sangat disarankan untuk berkonsultasi dengan psikolog atau layanan kesehatan jiwa kampus untuk mendapatkan bantuan profesional.",
-    "social_support": "Kurangnya dukungan sosial berperan besar pada tingkat stres. Cobalah untuk lebih terbuka dengan keluarga, teman terdekat, atau bergabung dengan komunitas hobi di kampus.",
-    "default": "Tetap perhatikan keseimbangan antara aktivitas akademik dan waktu istirahat. Mengelola stres sedini mungkin akan sangat membantu produktivitas jangka panjang."
+    Contoh:
+      ui_to_native(3, 0, 21) -> 10  (anxiety_level di tengah)
+      ui_to_native(5, 0, 21) -> 21  (anxiety_level maksimum)
+    """
+    if ui_value < 1 or ui_value > 5:
+        raise ValueError("UI value harus antara 1 dan 5")
+    fraction = (ui_value - 1) / 4.0  # 0.0, 0.25, 0.5, 0.75, 1.0
+    return int(round(native_min + fraction * (native_max - native_min)))
+
+
+# === KONSTANTA: Range asli dataset untuk konversi ===
+FEATURE_RANGES = {
+    "anxiety_level":          (0, 21),
+    "self_esteem":            (0, 30),
+    "depression":             (0, 27),
+    "headache":               (0, 5),
+    "blood_pressure":         (1, 3),
+    "sleep_quality":          (1, 5),
+    "breathing_problem":      (0, 5),
+    "noise_level":            (0, 5),
+    "living_conditions":      (1, 5),
+    "safety":                 (1, 5),
+    "basic_needs":            (1, 5),
+    "academic_performance":   (1, 5),
+    "study_load":             (1, 5),
+    "teacher_student_relationship": (1, 5),
+    "future_career_concerns": (1, 5),
+    "social_support":         (0, 3),
+    "peer_pressure":          (1, 5),
+    "extracurricular_activities": (0, 5),
+    "bullying":               (0, 5),
 }
+
+# === LABEL SKALA SERAGAM 1-5 ===
+SCALE_LABELS = {
+    1: "1 — Sangat Rendah",
+    2: "2 — Rendah",
+    3: "3 — Sedang",
+    4: "4 — Tinggi",
+    5: "5 — Sangat Tinggi",
+}
+
+def fmt_scale(x: int) -> str:
+    """Formatter slider: tampilkan label skala seragam."""
+    return SCALE_LABELS.get(x, str(x))
 
 # ──────────────────────────────────────────────
 # LOAD ARTIFACTS
@@ -126,12 +153,12 @@ ADVICE_MAP = {
 @st.cache_resource
 def load_artifacts():
     try:
-        model             = joblib.load("xgb_model.pkl") # Disesuaikan dengan penamaan file joblib di script utama
+        model             = joblib.load("xgb_model.pkl")
         scaler            = joblib.load("scaler.pkl")
         label_encoder     = joblib.load("label_encoder.pkl")
         selected_features = joblib.load("selected_features.pkl")
     except:
-        st.warning("⚠️ Artefak model (xgboost_model.pkl, scaler.pkl, dll) belum ditemukan di direktori saat ini.")
+        st.warning("⚠️ Artefak model (xgb_model.pkl, scaler.pkl, dll) belum ditemukan di direktori saat ini.")
         st.stop()
     return model, scaler, label_encoder, selected_features
 
@@ -208,57 +235,151 @@ def build_input_row(raw):
 # SIDEBAR INPUT & IDENTITAS
 # ══════════════════════════════════════════════
 with st.sidebar:
-    st.markdown("""
-    <div class="sidebar-header">
-        <div class="sidebar-app-name">Prediksi Stress Mahasiswa</div>
-        <div class="sidebar-tagline">Explainable AI untuk Prediksi Tingkat Stres Mahasiswa</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.header("Input Data Mahasiswa")
+    st.caption("Geser semua slider pada skala 1-5 (1 = Sangat Rendah, 5 = Sangat Tinggi)")
 
-    with st.expander("🧠 Psikologis", expanded=True):
-        anxiety_level         = st.slider("Kecemasan", 0, 21, 10, help="Skala 0 (Tidak cemas sama sekali) hingga 21 (Sangat cemas/Kecemasan berat)")
-        self_esteem           = st.slider("Harga Diri", 0, 30, 15, help="Skala 0 (Sangat rendah/Tidak percaya diri) hingga 30 (Sangat tinggi)")
-        mental_health_history = st.selectbox("Riwayat Mental", [0, 1], format_func=lambda x: "Tidak ada" if x == 0 else "Ada riwayat", help="0 = Tidak pernah memiliki masalah mental. 1 = Memiliki riwayat masalah mental sebelumnya.")
-        depression            = st.slider("Depresi", 0, 27, 10, help="Skala 0 (Tidak ada gejala depresi) hingga 27 (Depresi sangat berat)")
+    # === Faktor Psikologis ===
+    with st.expander("Faktor Psikologis", expanded=True):
+        ui_anxiety = st.slider(
+            "Tingkat Kecemasan", 1, 5, 3,
+            format_func=fmt_scale,
+            help="Seberapa sering merasa cemas, gelisah, atau khawatir berlebihan dalam keseharian"
+        )
+        ui_self_esteem = st.slider(
+            "Tingkat Harga Diri (kepercayaan diri)", 1, 5, 3,
+            format_func=fmt_scale,
+            help="Seberapa puas dengan diri sendiri dan kemampuan yang dimiliki"
+        )
+        ui_depression = st.slider(
+            "Tingkat Gejala Depresi", 1, 5, 3,
+            format_func=fmt_scale,
+            help="Seberapa sering merasa sedih, putus asa, atau kehilangan minat pada aktivitas"
+        )
+        mental_health_history = st.radio(
+            "Riwayat Masalah Mental",
+            options=[0, 1],
+            format_func=lambda x: "Tidak ada" if x == 0 else "Ada riwayat",
+            horizontal=True,
+            help="Apakah pernah atau sedang menjalani konsultasi/perawatan mental sebelumnya?"
+        )
 
-    with st.expander("🩺 Kesehatan Fisik", expanded=False):
-        headache          = st.slider("Sakit Kepala", 0, 5, 2, help="Frekuensi: 0 (Tidak pernah) hingga 5 (Sangat sering / hampir setiap hari)")
-        blood_pressure    = st.slider("Tekanan Darah", 1, 3, 2, help="Kondisi: 1 (Hipotensi/Rendah), 2 (Normal), 3 (Hipertensi/Tinggi)")
-        sleep_quality     = st.slider("Kualitas Tidur", 1, 5, 3, help="Skala 1 (Sangat buruk / insomnia) hingga 5 (Sangat nyenyak dan berkualitas)")
-        breathing_problem = st.slider("Pernapasan", 0, 5, 1, help="Gangguan napas/sesak: 0 (Tidak pernah bermasalah) hingga 5 (Sering bermasalah/sesak)")
+    # === Faktor Fisiologis ===
+    with st.expander("Faktor Fisiologis"):
+        ui_headache = st.slider(
+            "Frekuensi Sakit Kepala", 1, 5, 3,
+            format_func=fmt_scale,
+            help="Seberapa sering mengalami sakit kepala/migrain"
+        )
+        ui_blood_pressure = st.slider(
+            "Kondisi Tekanan Darah", 1, 5, 3,
+            format_func=fmt_scale,
+            help="1=Sangat rendah/hipotensi, 3=Normal, 5=Sangat tinggi/hipertensi"
+        )
+        ui_sleep_quality = st.slider(
+            "Kualitas Tidur", 1, 5, 3,
+            format_func=fmt_scale,
+            help="1=Sangat buruk/insomnia, 5=Sangat nyenyak"
+        )
+        ui_breathing = st.slider(
+            "Frekuensi Gangguan Pernapasan", 1, 5, 3,
+            format_func=fmt_scale,
+            help="Seberapa sering mengalami sesak napas atau gangguan pernapasan"
+        )
 
-    with st.expander("🏠 Lingkungan", expanded=False):
-        noise_level       = st.slider("Kebisingan", 0, 5, 2, help="Skala 0 (Lingkungan sangat tenang) hingga 5 (Sangat bising / mengganggu)")
-        living_conditions = st.slider("Kondisi Tempat", 1, 5, 3, help="Kelayakan: 1 (Sangat buruk/tidak layak) hingga 5 (Sangat baik dan nyaman)")
-        safety            = st.slider("Rasa Aman", 1, 5, 3, help="Skala 1 (Sangat merasa tidak aman) hingga 5 (Sangat aman dari gangguan)")
-        basic_needs       = st.slider("Kebutuhan Dasar", 1, 5, 3, help="Pemenuhan makan/minum/fasilitas: 1 (Sering tidak terpenuhi) hingga 5 (Selalu terpenuhi dengan baik)")
+    # === Faktor Lingkungan ===
+    with st.expander("Faktor Lingkungan"):
+        ui_noise = st.slider(
+            "Tingkat Kebisingan Lingkungan", 1, 5, 3,
+            format_func=fmt_scale,
+            help="1=Sangat tenang, 5=Sangat bising/mengganggu"
+        )
+        ui_living = st.slider(
+            "Kualitas Tempat Tinggal", 1, 5, 3,
+            format_func=fmt_scale,
+            help="Kelayakan tempat tinggal: 1=Sangat buruk, 5=Sangat baik"
+        )
+        ui_safety = st.slider(
+            "Tingkat Rasa Aman", 1, 5, 3,
+            format_func=fmt_scale,
+            help="1=Sangat tidak aman, 5=Sangat aman"
+        )
+        ui_basic_needs = st.slider(
+            "Pemenuhan Kebutuhan Dasar", 1, 5, 3,
+            format_func=fmt_scale,
+            help="Makan, minum, fasilitas: 1=Sering tidak terpenuhi, 5=Selalu terpenuhi baik"
+        )
 
-    with st.expander("📚 Akademik", expanded=False):
-        academic_performance         = st.slider("Performa", 1, 5, 3, help="Kinerja akademik: 1 (Sangat buruk/IPK rendah) hingga 5 (Sangat baik/IPK sangat tinggi)")
-        study_load                   = st.slider("Beban Belajar", 1, 5, 3, help="Skala 1 (Beban tugas sangat ringan) hingga 5 (Beban tugas sangat berat)")
-        teacher_student_relationship = st.slider("Hub. Dosen", 1, 5, 3, help="Interaksi dengan dosen: 1 (Sangat buruk/sering konflik) hingga 5 (Sangat baik/suportif)")
-        future_career_concerns       = st.slider("Khawatir Karir", 1, 5, 3, help="Kecemasan masa depan: 1 (Tidak khawatir sama sekali) hingga 5 (Sangat cemas akan karir)")
+    # === Faktor Akademik ===
+    with st.expander("Faktor Akademik"):
+        ui_academic_perf = st.slider(
+            "Performa Akademik (IPK/nilai)", 1, 5, 3,
+            format_func=fmt_scale,
+            help="1=Sangat buruk/IPK rendah, 5=Sangat baik/IPK tinggi"
+        )
+        ui_study_load = st.slider(
+            "Beban Studi/Tugas", 1, 5, 3,
+            format_func=fmt_scale,
+            help="1=Sangat ringan, 5=Sangat berat"
+        )
+        ui_teacher_rel = st.slider(
+            "Hubungan dengan Dosen", 1, 5, 3,
+            format_func=fmt_scale,
+            help="1=Sangat buruk/sering konflik, 5=Sangat baik/suportif"
+        )
+        ui_career = st.slider(
+            "Kekhawatiran tentang Karir", 1, 5, 3,
+            format_func=fmt_scale,
+            help="1=Tidak khawatir, 5=Sangat cemas akan masa depan karir"
+        )
 
-    with st.expander("👥 Sosial", expanded=False):
-        social_support             = st.slider("Dukungan Sosial", 0, 3, 2, help="Tingkat dukungan keluarga/teman: 0 (Tidak ada) hingga 3 (Dukungan penuh)")
-        peer_pressure              = st.slider("Tekanan Teman", 1, 5, 3, help="Tuntutan pertemanan (Peer pressure): 1 (Tidak ada tekanan) hingga 5 (Tekanan sangat tinggi)")
-        extracurricular_activities = st.slider("Ekskul", 0, 5, 2, help="Keterlibatan organisasi/ekskul: 0 (Tidak aktif sama sekali) hingga 5 (Sangat aktif/sibuk)")
-        bullying                   = st.slider("Perundungan", 0, 5, 1, help="Tingkat perundungan (Bullying): 0 (Tidak pernah mengalami) hingga 5 (Sering menjadi korban)")
+    # === Faktor Sosial ===
+    with st.expander("Faktor Sosial"):
+        ui_social_support = st.slider(
+            "Dukungan Sosial (keluarga/teman)", 1, 5, 3,
+            format_func=fmt_scale,
+            help="1=Tidak ada dukungan, 5=Dukungan penuh"
+        )
+        ui_peer_pressure = st.slider(
+            "Tekanan dari Teman Sebaya", 1, 5, 3,
+            format_func=fmt_scale,
+            help="1=Tidak ada tekanan, 5=Tekanan sangat tinggi"
+        )
+        ui_extracurricular = st.slider(
+            "Keterlibatan Ekstrakurikuler", 1, 5, 3,
+            format_func=fmt_scale,
+            help="1=Tidak aktif, 5=Sangat aktif/sibuk"
+        )
+        ui_bullying = st.slider(
+            "Pengalaman Perundungan", 1, 5, 3,
+            format_func=fmt_scale,
+            help="1=Tidak pernah, 5=Sering mengalami"
+        )
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    # Tombol Update hanya me-refresh UI
-    st.button("Update Prediksi", use_container_width=True, type="primary")
+# === KONVERSI UI -> NATIVE SCALE sebelum prediksi ===
+input_dict = {
+    "anxiety_level":          ui_to_native(ui_anxiety, *FEATURE_RANGES["anxiety_level"]),
+    "self_esteem":            ui_to_native(ui_self_esteem, *FEATURE_RANGES["self_esteem"]),
+    "mental_health_history":  mental_health_history,
+    "depression":             ui_to_native(ui_depression, *FEATURE_RANGES["depression"]),
+    "headache":               ui_to_native(ui_headache, *FEATURE_RANGES["headache"]),
+    "blood_pressure":         ui_to_native(ui_blood_pressure, *FEATURE_RANGES["blood_pressure"]),
+    "sleep_quality":          ui_to_native(ui_sleep_quality, *FEATURE_RANGES["sleep_quality"]),
+    "breathing_problem":      ui_to_native(ui_breathing, *FEATURE_RANGES["breathing_problem"]),
+    "noise_level":            ui_to_native(ui_noise, *FEATURE_RANGES["noise_level"]),
+    "living_conditions":      ui_to_native(ui_living, *FEATURE_RANGES["living_conditions"]),
+    "safety":                 ui_to_native(ui_safety, *FEATURE_RANGES["safety"]),
+    "basic_needs":            ui_to_native(ui_basic_needs, *FEATURE_RANGES["basic_needs"]),
+    "academic_performance":   ui_to_native(ui_academic_perf, *FEATURE_RANGES["academic_performance"]),
+    "study_load":             ui_to_native(ui_study_load, *FEATURE_RANGES["study_load"]),
+    "teacher_student_relationship": ui_to_native(ui_teacher_rel, *FEATURE_RANGES["teacher_student_relationship"]),
+    "future_career_concerns": ui_to_native(ui_career, *FEATURE_RANGES["future_career_concerns"]),
+    "social_support":         ui_to_native(ui_social_support, *FEATURE_RANGES["social_support"]),
+    "peer_pressure":          ui_to_native(ui_peer_pressure, *FEATURE_RANGES["peer_pressure"]),
+    "extracurricular_activities": ui_to_native(ui_extracurricular, *FEATURE_RANGES["extracurricular_activities"]),
+    "bullying":               ui_to_native(ui_bullying, *FEATURE_RANGES["bullying"]),
+}
 
-    # Identitas Peneliti di Sidebar
-    st.markdown("<hr style='margin: 2rem 0 1rem 0;'>", unsafe_allow_html=True)
-    st.markdown("""
-    <div style="text-align: center; color: #64748b; font-size: 0.8rem; line-height: 1.5;">
-        <b>Penelitian Tugas Akhir</b><br>
-        Kevin Philips Tanamas<br>
-        <span style="font-family: 'JetBrains Mono', monospace;">NPM: 220711789</span>
-    </div>
-    """, unsafe_allow_html=True)
+# Lanjutkan dengan feature engineering, scaling, prediksi (kode yang sudah ada)
 
 
 # ══════════════════════════════════════════════
@@ -287,9 +408,9 @@ cfg              = STRESS_CONFIG[pred_class]
 st.markdown("### 🎓 Prediksi Tingkat Stres Mahasiswa (XGBoost + SHAP)")
 st.markdown("<p style='color:#64748b; font-size:0.9rem; margin-top:-0.5rem;'>Implementasi Machine Learning berdasarkan metodologi CRISP-DM.</p>", unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Prediksi Individu", "Interpretasi & Saran", "Ringkasan Data", "Prediksi Batch", "Performa Model"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Prediksi Individu", "Interpretasi Model", "Ringkasan Data", "Prediksi Batch", "Performa Model"])
 
-# ── TAB 1: HASIL PREDIKSI & SKENARIO ──
+# ── TAB 1: HASIL PREDIKSI ──
 with tab1:
     st.markdown("<br>", unsafe_allow_html=True)
     col_result, col_prob = st.columns([1, 1.2], gap="large")
@@ -304,27 +425,11 @@ with tab1:
         </div>
         """, unsafe_allow_html=True)
 
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            # Fitur Simpan Skenario (Live Demo)
-            if st.button("💾 Simpan ke Skenario", use_container_width=True):
-                timestamp = datetime.now().strftime("%H:%M:%S")
-                st.session_state.history.append({
-                    "Waktu": timestamp,
-                    "Kecemasan": anxiety_level,
-                    "Beban_Belajar": study_load,
-                    "Tidur": sleep_quality,
-                    "Hasil_Prediksi": cfg['label'],
-                    "Keyakinan": f"{max(prediction_proba[0]):.1%}"
-                })
-                st.success("Tersimpan!")
-                
-        with col_btn2:
-            # Ekspor Hasil Individu
-            result_df = pd.DataFrame([raw_input])
-            result_df["Hasil_Prediksi"] = cfg['label']
-            csv = result_df.to_csv(index=False).encode('utf-8')
-            st.download_button(label="📥 Unduh (CSV)", data=csv, file_name='laporan_stres_individu.csv', mime='text/csv', use_container_width=True)
+        # Ekspor Hasil Individu
+        result_df = pd.DataFrame([raw_input])
+        result_df["Hasil_Prediksi"] = cfg['label']
+        csv = result_df.to_csv(index=False).encode('utf-8')
+        st.download_button(label="📥 Unduh Laporan Analisis (CSV)", data=csv, file_name='laporan_stres_individu.csv', mime='text/csv', use_container_width=True)
 
     with col_prob:
         st.markdown("<div class='section-title'>Probabilitas Kelas</div>", unsafe_allow_html=True)
@@ -343,22 +448,14 @@ with tab1:
             """, unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # Tabel Riwayat Skenario (Muncul jika ada data)
-    if st.session_state.history:
-        st.markdown("<div class='section-title' style='margin-top: 2rem;'>Riwayat Komparasi Skenario (Live Demo)</div>", unsafe_allow_html=True)
-        st.dataframe(pd.DataFrame(st.session_state.history), use_container_width=True)
-        if st.button("Hapus Riwayat"):
-            st.session_state.history = []
-            st.rerun()
 
-
-# ── TAB 2: SHAP EXPLANATION & PRESCRIPTIVE ANALYTICS ──
+# ── TAB 2: SHAP EXPLANATION ──
 with tab2:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("""
     <div class="shap-info-card">
-        <strong>Interpretasi Model (SHAP) & Rekomendasi</strong><br>
-        Teknologi <i>Explainable AI</i> mengungkap faktor dominan. Sistem juga memberikan rekomendasi tindak lanjut berdasarkan analisis.
+        <strong>Interpretasi Model (SHAP)</strong><br>
+        Teknologi <i>Explainable AI</i> yang mengungkap faktor utama yang mendorong prediksi model dari data Anda.
         <div class="shap-legend">
             <div class="shap-legend-item"><div class="dot-red"></div> Mendorong stres lebih tinggi</div>
             <div class="shap-legend-item"><div class="dot-blue"></div> Mendorong stres lebih rendah</div>
@@ -377,19 +474,6 @@ with tab2:
             shap_series  = pd.Series(sv, index=selected_features)
             top_positive = shap_series[shap_series > 0].sort_values(ascending=False).head(4)
             top_negative = shap_series[shap_series < 0].sort_values(ascending=True).head(4)
-
-            # --- Prescriptive Analytics (Menampilkan Saran berdasarkan pendorong stres terbesar) ---
-            if not top_positive.empty and pred_class > 0: # Hanya beri saran jika stres Sedang/Tinggi
-                top_driver = top_positive.index[0]
-                advice = ADVICE_MAP.get(top_driver, ADVICE_MAP["default"])
-                
-                st.markdown(f"""
-                <div class="recommendation-box">
-                    <div class="recommendation-title">💡 Saran Tindak Lanjut: Fokus pada "{FEATURE_LABELS.get(top_driver, top_driver)}"</div>
-                    <div class="recommendation-text">{advice}</div>
-                </div>
-                <br>
-                """, unsafe_allow_html=True)
 
             col_up, col_down = st.columns(2, gap="medium")
             with col_up:
