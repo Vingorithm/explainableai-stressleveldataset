@@ -334,20 +334,26 @@ with st.sidebar:
 
     # === Faktor Psikologis ===
     with st.expander("Faktor Psikologis", expanded=True):
-        ui_anxiety = st.slider(
-            "Tingkat Kecemasan", 1, 5, 3,
+        ui_anxiety = st.select_slider(
+            "Tingkat Kecemasan",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="Seberapa sering merasa cemas, gelisah, atau khawatir berlebihan dalam keseharian"
+            help="Seberapa sering merasa cemas, gelisah, atau khawatir berlebihan dalam keseharian",
         )
-        ui_self_esteem = st.slider(
-            "Tingkat Harga Diri (kepercayaan diri)", 1, 5, 3,
+        ui_self_esteem = st.select_slider(
+            "Tingkat Harga Diri (kepercayaan diri)",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="Seberapa puas dengan diri sendiri dan kemampuan yang dimiliki"
+            help="Seberapa puas dengan diri sendiri dan kemampuan yang dimiliki",
         )
-        ui_depression = st.slider(
-            "Tingkat Gejala Depresi", 1, 5, 3,
+        ui_depression = st.select_slider(
+            "Tingkat Gejala Depresi",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="Seberapa sering merasa sedih, putus asa, atau kehilangan minat pada aktivitas"
+            help="Seberapa sering merasa sedih, putus asa, atau kehilangan minat pada aktivitas",
         )
         mental_health_history = st.radio(
             "Riwayat Masalah Mental",
@@ -359,94 +365,126 @@ with st.sidebar:
 
     # === Faktor Fisiologis ===
     with st.expander("Faktor Fisiologis"):
-        ui_headache = st.slider(
-            "Frekuensi Sakit Kepala", 1, 5, 3,
+        ui_headache = st.select_slider(
+            "Frekuensi Sakit Kepala",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="Seberapa sering mengalami sakit kepala/migrain"
+            help="Seberapa sering mengalami sakit kepala/migrain",
         )
-        ui_blood_pressure = st.slider(
-            "Kondisi Tekanan Darah", 1, 5, 3,
+        ui_blood_pressure = st.select_slider(
+            "Kondisi Tekanan Darah",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="1=Sangat rendah/hipotensi, 3=Normal, 5=Sangat tinggi/hipertensi"
+            help="1=Sangat rendah/hipotensi, 3=Normal, 5=Sangat tinggi/hipertensi",
         )
-        ui_sleep_quality = st.slider(
-            "Kualitas Tidur", 1, 5, 3,
+        ui_sleep_quality = st.select_slider(
+            "Kualitas Tidur",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="1=Sangat buruk/insomnia, 5=Sangat nyenyak"
+            help="1=Sangat buruk/insomnia, 5=Sangat nyenyak",
         )
-        ui_breathing = st.slider(
-            "Frekuensi Gangguan Pernapasan", 1, 5, 3,
+        ui_breathing = st.select_slider(
+            "Frekuensi Gangguan Pernapasan",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="Seberapa sering mengalami sesak napas atau gangguan pernapasan"
+            help="Seberapa sering mengalami sesak napas atau gangguan pernapasan",
         )
 
     # === Faktor Lingkungan ===
     with st.expander("Faktor Lingkungan"):
-        ui_noise = st.slider(
-            "Tingkat Kebisingan Lingkungan", 1, 5, 3,
+        ui_noise = st.select_slider(
+            "Tingkat Kebisingan Lingkungan",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="1=Sangat tenang, 5=Sangat bising/mengganggu"
+            help="1=Sangat tenang, 5=Sangat bising/mengganggu",
         )
-        ui_living = st.slider(
-            "Kualitas Tempat Tinggal", 1, 5, 3,
+        ui_living = st.select_slider(
+            "Kualitas Tempat Tinggal",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="Kelayakan tempat tinggal: 1=Sangat buruk, 5=Sangat baik"
+            help="Kelayakan tempat tinggal: 1=Sangat buruk, 5=Sangat baik",
         )
-        ui_safety = st.slider(
-            "Tingkat Rasa Aman", 1, 5, 3,
+        ui_safety = st.select_slider(
+            "Tingkat Rasa Aman",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="1=Sangat tidak aman, 5=Sangat aman"
+            help="1=Sangat tidak aman, 5=Sangat aman",
         )
-        ui_basic_needs = st.slider(
-            "Pemenuhan Kebutuhan Dasar", 1, 5, 3,
+        ui_basic_needs = st.select_slider(
+            "Pemenuhan Kebutuhan Dasar",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="Makan, minum, fasilitas: 1=Sering tidak terpenuhi, 5=Selalu terpenuhi baik"
+            help="Makan, minum, fasilitas: 1=Sering tidak terpenuhi, 5=Selalu terpenuhi baik",
         )
 
     # === Faktor Akademik ===
     with st.expander("Faktor Akademik"):
-        ui_academic_perf = st.slider(
-            "Performa Akademik (IPK/nilai)", 1, 5, 3,
+        ui_academic_perf = st.select_slider(
+            "Performa Akademik (IPK/nilai)",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="1=Sangat buruk/IPK rendah, 5=Sangat baik/IPK tinggi"
+            help="1=Sangat buruk/IPK rendah, 5=Sangat baik/IPK tinggi",
         )
-        ui_study_load = st.slider(
-            "Beban Studi/Tugas", 1, 5, 3,
+        ui_study_load = st.select_slider(
+            "Beban Studi/Tugas",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="1=Sangat ringan, 5=Sangat berat"
+            help="1=Sangat ringan, 5=Sangat berat",
         )
-        ui_teacher_rel = st.slider(
-            "Hubungan dengan Dosen", 1, 5, 3,
+        ui_teacher_rel = st.select_slider(
+            "Hubungan dengan Dosen",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="1=Sangat buruk/sering konflik, 5=Sangat baik/suportif"
+            help="1=Sangat buruk/sering konflik, 5=Sangat baik/suportif",
         )
-        ui_career = st.slider(
-            "Kekhawatiran tentang Karir", 1, 5, 3,
+        ui_career = st.select_slider(
+            "Kekhawatiran tentang Karir",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="1=Tidak khawatir, 5=Sangat cemas akan masa depan karir"
+            help="1=Tidak khawatir, 5=Sangat cemas akan masa depan karir",
         )
 
     # === Faktor Sosial ===
     with st.expander("Faktor Sosial"):
-        ui_social_support = st.slider(
-            "Dukungan Sosial (keluarga/teman)", 1, 5, 3,
+        ui_social_support = st.select_slider(
+            "Dukungan Sosial (keluarga/teman)",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="1=Tidak ada dukungan, 5=Dukungan penuh"
+            help="1=Tidak ada dukungan, 5=Dukungan penuh",
         )
-        ui_peer_pressure = st.slider(
-            "Tekanan dari Teman Sebaya", 1, 5, 3,
+        ui_peer_pressure = st.select_slider(
+            "Tekanan dari Teman Sebaya",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="1=Tidak ada tekanan, 5=Tekanan sangat tinggi"
+            help="1=Tidak ada tekanan, 5=Tekanan sangat tinggi",
         )
-        ui_extracurricular = st.slider(
-            "Keterlibatan Ekstrakurikuler", 1, 5, 3,
+        ui_extracurricular = st.select_slider(
+            "Keterlibatan Ekstrakurikuler",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="1=Tidak aktif, 5=Sangat aktif/sibuk"
+            help="1=Tidak aktif, 5=Sangat aktif/sibuk",
         )
-        ui_bullying = st.slider(
-            "Pengalaman Perundungan", 1, 5, 3,
+        ui_bullying = st.select_slider(
+            "Pengalaman Perundungan",
+            options=[1, 2, 3, 4, 5],
+            value=3,
             format_func=fmt_scale,
-            help="1=Tidak pernah, 5=Sering mengalami"
+            help="1=Tidak pernah, 5=Sering mengalami",
         )
 
 
@@ -520,7 +558,7 @@ with tab1:
         st.download_button(
             label="📥 Unduh Laporan Analisis (CSV)",
             data=csv, file_name='laporan_stres_individu.csv',
-            mime='text/csv', use_container_width=True
+            mime='text/csv', width='stretch'
         )
 
     with col_prob:
@@ -661,7 +699,7 @@ with tab3:
             fontSize=11, fontWeight=600, color='#1e293b',
         ).encode(text='Nilai Asli:N')
 
-        st.altair_chart((bars + text).properties(height=280), use_container_width=True)
+        st.altair_chart((bars + text).properties(height=280), width='stretch')
 
     with col_b:
         st.markdown("<div class='section-title'>Fitur Kalkulasi Model</div>", unsafe_allow_html=True)
