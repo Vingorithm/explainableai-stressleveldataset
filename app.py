@@ -1,5 +1,29 @@
-# App.py  –  Website Prediksi Tingkat Stres Mahasiswa
-# Light UI – Clean, Compact, Feature-Rich (Thesis Edition)
+# -*- coding: utf-8 -*-
+"""
+app.py — Website Prediksi Tingkat Stres Mahasiswa
+==================================================
+Penelitian : Explainable AI untuk Prediksi Tingkat Stres Mahasiswa
+             Perbandingan XGBoost, Random Forest, LightGBM
+Penulis    : Kevin Philips Tanamas (220711789)
+Versi      : v10 (revisi pasca-sidang)
+
+Catatan revisi v10:
+- Slider menggunakan skala seragam 1-5 dengan label deskriptif (Revisi 4).
+- Konversi UI -> native dataset dilakukan via ui_to_native() sebelum
+  pipeline scaler dan model.
+- Path artefak konsisten: 'xgboost_model.pkl' (bukan 'xgb_model.pkl').
+- MINMAX_RANGE dan max value engineered features bersumber dari
+  FEATURE_RANGES (single source of truth) agar konsisten dengan training.
+
+Cara menjalankan:
+    streamlit run app.py
+
+Artefak yang dibutuhkan di direktori yang sama:
+    - xgboost_model.pkl
+    - scaler.pkl
+    - label_encoder.pkl
+    - selected_features.pkl
+"""
 
 import streamlit as st
 import pandas as pd
@@ -8,7 +32,6 @@ import joblib
 import builtins
 import ast
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 import altair as alt
 
 # ──────────────────────────────────────────────
@@ -30,7 +53,7 @@ st.markdown("""
 
 html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
-    color: #fffff;
+    color: #0f172a;
 }
 .stApp { background: #f8fafc; }
 .block-container { padding-top: 1.5rem; padding-bottom: 2rem; max-width: 1100px; }
@@ -73,6 +96,11 @@ section[data-testid="stSidebar"] label { font-size: 0.85rem !important; font-wei
 
 /* SHAP & Drivers */
 .shap-info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.85rem 1rem; margin-bottom: 1rem; font-size: 0.85rem; color: #475569; }
+.shap-legend { display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.8rem; }
+.shap-legend-item { display: flex; align-items: center; gap: 0.4rem; }
+.dot-red { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; }
+.dot-blue { width: 10px; height: 10px; border-radius: 50%; background: #3b82f6; }
+
 .driver-group-title { font-size: 0.8rem; font-weight: 600; margin-bottom: 0.5rem; }
 .driver-group-title-red  { color: #b91c1c; }
 .driver-group-title-blue { color: #1d4ed8; }
@@ -95,15 +123,16 @@ section[data-testid="stSidebar"] label { font-size: 0.85rem !important; font-wei
 </style>
 """, unsafe_allow_html=True)
 
-# === HELPER: Konversi skala UI (1-5) ke skala dataset asli ===
-def ui_to_native(ui_value: int, native_min: int, native_max: int) -> int:
-    """
-    Konversi nilai slider UI (skala 1-5) ke skala asli dataset.
-    Pemetaan linear: 1 -> native_min, 5 -> native_max.
 
-    Contoh:
-      ui_to_native(3, 0, 21) -> 10  (anxiety_level di tengah)
-      ui_to_native(5, 0, 21) -> 21  (anxiety_level maksimum)
+# ══════════════════════════════════════════════
+# HELPER & KONSTANTA — Konversi skala UI ↔ native
+# ══════════════════════════════════════════════
+def ui_to_native(ui_value: int, native_min: int, native_max: int) -> int:
+    """Konversi nilai slider UI (skala 1-5) ke skala asli dataset.
+
+    Pemetaan linear: 1 -> native_min, 5 -> native_max.
+        ui_to_native(3, 0, 21) -> 10  (anxiety_level di tengah)
+        ui_to_native(5, 0, 21) -> 21  (anxiety_level maksimum)
     """
     if ui_value < 1 or ui_value > 5:
         raise ValueError("UI value harus antara 1 dan 5")
@@ -111,7 +140,7 @@ def ui_to_native(ui_value: int, native_min: int, native_max: int) -> int:
     return int(round(native_min + fraction * (native_max - native_min)))
 
 
-# === KONSTANTA: Range asli dataset untuk konversi ===
+# Range asli dataset — sumber kebenaran tunggal untuk semua konversi
 FEATURE_RANGES = {
     "anxiety_level":          (0, 21),
     "self_esteem":            (0, 30),
@@ -134,7 +163,6 @@ FEATURE_RANGES = {
     "bullying":               (0, 5),
 }
 
-# === LABEL SKALA SERAGAM 1-5 ===
 SCALE_LABELS = {
     1: "1 — Sangat Rendah",
     2: "2 — Rendah",
@@ -143,31 +171,44 @@ SCALE_LABELS = {
     5: "5 — Sangat Tinggi",
 }
 
+
 def fmt_scale(x: int) -> str:
-    """Formatter slider: tampilkan label skala seragam."""
+    """Formatter slider: tampilkan label skala seragam 1-5."""
     return SCALE_LABELS.get(x, str(x))
+
 
 # ──────────────────────────────────────────────
 # LOAD ARTIFACTS
 # ──────────────────────────────────────────────
 @st.cache_resource
 def load_artifacts():
+    """Memuat artefak model XGBoost yang sudah dilatih.
+
+    Catatan: Nama file harus konsisten dengan tahap penyimpanan model
+    di pipeline pelatihan (joblib.dump). Pada v10, file disimpan sebagai
+    'xgboost_model.pkl' (bukan 'xgb_model.pkl').
+    """
     try:
-        model             = joblib.load("xgb_model.pkl")
+        model             = joblib.load("xgboost_model.pkl")
         scaler            = joblib.load("scaler.pkl")
         label_encoder     = joblib.load("label_encoder.pkl")
         selected_features = joblib.load("selected_features.pkl")
-    except:
-        st.warning("⚠️ Artefak model (xgb_model.pkl, scaler.pkl, dll) belum ditemukan di direktori saat ini.")
+    except FileNotFoundError as e:
+        st.error(
+            "⚠️ Artefak model (xgboost_model.pkl, scaler.pkl, label_encoder.pkl, "
+            "selected_features.pkl) belum ditemukan di direktori saat ini. "
+            f"Detail: {e}"
+        )
         st.stop()
     return model, scaler, label_encoder, selected_features
+
 
 model, scaler, le, selected_features = load_artifacts()
 
 STRESS_CONFIG = {
-    0: {"label": "Stres Rendah", "level": "Level Rendah", "css_class": "result-card-low", "level_class": "result-level-low", "bar_class": "prob-bar-low", "desc": "Kondisi mental terpantau stabil. Pertahankan pola istirahat dan dukungan sosial yang positif."},
+    0: {"label": "Stres Rendah", "level": "Level Rendah", "css_class": "result-card-low",    "level_class": "result-level-low",    "bar_class": "prob-bar-low",    "desc": "Kondisi mental terpantau stabil. Pertahankan pola istirahat dan dukungan sosial yang positif."},
     1: {"label": "Stres Sedang", "level": "Level Sedang", "css_class": "result-card-medium", "level_class": "result-level-medium", "bar_class": "prob-bar-medium", "desc": "Terdapat beberapa indikasi pemicu stres. Perhatikan kualitas tidur dan manajemen beban akademik."},
-    2: {"label": "Stres Tinggi", "level": "Level Tinggi", "css_class": "result-card-high", "level_class": "result-level-high", "bar_class": "prob-bar-high", "desc": "Tingkat stres terdeteksi cukup tinggi. Disarankan untuk berkonsultasi dengan layanan konseling akademik atau kesehatan jiwa."},
+    2: {"label": "Stres Tinggi", "level": "Level Tinggi", "css_class": "result-card-high",   "level_class": "result-level-high",   "bar_class": "prob-bar-high",   "desc": "Tingkat stres terdeteksi cukup tinggi. Disarankan untuk berkonsultasi dengan layanan konseling akademik atau kesehatan jiwa."},
 }
 
 FEATURE_LABELS = {
@@ -181,32 +222,41 @@ FEATURE_LABELS = {
     "environment_quality_index": "Indeks Kualitas Lingkungan", "social_stress_score": "Skor Stres Sosial",
 }
 
+
 # ──────────────────────────────────────────────
-# SHAP Monkey-Patch & NORMALIZATION
+# SHAP Monkey-Patch & FEATURE ENGINEERING
 # ──────────────────────────────────────────────
 def patch_shap_for_xgb_multiclass():
+    """Patch SHAP TreeExplainer agar kompatibel dengan XGBoost multikelas."""
     import shap.explainers._tree as _tree_mod
     _OrigLoader = _tree_mod.XGBTreeModelLoader
     _orig_init  = _OrigLoader.__init__
     _orig_float = builtins.float
-    if getattr(_OrigLoader, "_patched_for_multiclass", False): return
+    if getattr(_OrigLoader, "_patched_for_multiclass", False):
+        return
 
     class _ArrayAwareFloat(float):
         def __new__(cls, x=0):
             if isinstance(x, str):
-                try: return _orig_float.__new__(cls, x)
-                except:
-                    try: return _orig_float.__new__(cls, np.mean(ast.literal_eval(x)))
-                    except: return _orig_float.__new__(cls, 0.5)
+                try:
+                    return _orig_float.__new__(cls, x)
+                except Exception:
+                    try:
+                        return _orig_float.__new__(cls, np.mean(ast.literal_eval(x)))
+                    except Exception:
+                        return _orig_float.__new__(cls, 0.5)
             return _orig_float.__new__(cls, x)
 
     def _patched_init(self, xgb_model):
         builtins.float = _ArrayAwareFloat
-        try: _orig_init(self, xgb_model)
-        finally: builtins.float = _orig_float
+        try:
+            _orig_init(self, xgb_model)
+        finally:
+            builtins.float = _orig_float
 
     _OrigLoader.__init__ = _patched_init
     _OrigLoader._patched_for_multiclass = True
+
 
 @st.cache_resource
 def get_shap_explainer(_model):
@@ -214,25 +264,69 @@ def get_shap_explainer(_model):
     patch_shap_for_xgb_multiclass()
     return shap.TreeExplainer(_model)
 
-MINMAX_RANGE = { "study_load": (0, 5), "future_career_concerns": (0, 5), "academic_performance": (0, 5), "peer_pressure": (0, 5), "bullying": (0, 5), "social_support": (0, 3) }
+
+# MINMAX_RANGE bersumber dari FEATURE_RANGES (single source of truth)
+MINMAX_RANGE = {
+    "study_load":             FEATURE_RANGES["study_load"],
+    "future_career_concerns": FEATURE_RANGES["future_career_concerns"],
+    "academic_performance":   FEATURE_RANGES["academic_performance"],
+    "peer_pressure":          FEATURE_RANGES["peer_pressure"],
+    "bullying":               FEATURE_RANGES["bullying"],
+    "social_support":         FEATURE_RANGES["social_support"],
+}
+
 
 def minmax_norm_single(value, feat):
     lo, hi = MINMAX_RANGE[feat]
     return (value - lo) / (hi - lo) if hi != lo else 0.0
 
+
 def build_input_row(raw):
+    """Bangun 1-baris DataFrame berisi semua fitur (asli + rekayasa)
+    untuk dimasukkan ke scaler dan model.
+
+    Catatan v10: nilai MAX untuk environment_quality_index diambil dari
+    FEATURE_RANGES (single source of truth) agar konsisten dengan
+    skema fitur saat training (X_train_base.max()).
+    """
+    # Bobot academic_stress_index hasil korelasi pada data latih
     w_study, w_career, w_acad = 0.6342, 0.7426, 0.7209
     total_w = w_study + w_career + w_acad
-    academic_stress_index = ((w_study / total_w) * minmax_norm_single(raw["study_load"], "study_load") + (w_career / total_w) * minmax_norm_single(raw["future_career_concerns"], "future_career_concerns") + (w_acad / total_w) * (1 - minmax_norm_single(raw["academic_performance"], "academic_performance")))
-    environment_quality_index = (raw["noise_level"] + (5 - raw["living_conditions"]) + (5 - raw["safety"]) + (5 - raw["basic_needs"]))
-    social_stress_score = (minmax_norm_single(raw["peer_pressure"], "peer_pressure") + minmax_norm_single(raw["bullying"], "bullying") + (1 - minmax_norm_single(raw["social_support"], "social_support")))
 
-    full = {**raw, "academic_stress_index": academic_stress_index, "environment_quality_index": environment_quality_index, "social_stress_score": social_stress_score}
+    academic_stress_index = (
+        (w_study  / total_w) * minmax_norm_single(raw["study_load"], "study_load")
+      + (w_career / total_w) * minmax_norm_single(raw["future_career_concerns"], "future_career_concerns")
+      + (w_acad   / total_w) * (1 - minmax_norm_single(raw["academic_performance"], "academic_performance"))
+    )
+
+    max_living = FEATURE_RANGES["living_conditions"][1]
+    max_safety = FEATURE_RANGES["safety"][1]
+    max_basic  = FEATURE_RANGES["basic_needs"][1]
+
+    environment_quality_index = (
+        raw["noise_level"]
+        + (max_living - raw["living_conditions"])
+        + (max_safety - raw["safety"])
+        + (max_basic  - raw["basic_needs"])
+    )
+
+    social_stress_score = (
+        minmax_norm_single(raw["peer_pressure"], "peer_pressure")
+      + minmax_norm_single(raw["bullying"], "bullying")
+      + (1 - minmax_norm_single(raw["social_support"], "social_support"))
+    )
+
+    full = {
+        **raw,
+        "academic_stress_index":     academic_stress_index,
+        "environment_quality_index": environment_quality_index,
+        "social_stress_score":       social_stress_score,
+    }
     return pd.DataFrame([full])[selected_features]
 
 
 # ══════════════════════════════════════════════
-# SIDEBAR INPUT & IDENTITAS
+# SIDEBAR INPUT — Skala UI Seragam 1-5
 # ══════════════════════════════════════════════
 with st.sidebar:
     st.header("Input Data Mahasiswa")
@@ -355,45 +449,37 @@ with st.sidebar:
             help="1=Tidak pernah, 5=Sering mengalami"
         )
 
+
 # === KONVERSI UI -> NATIVE SCALE sebelum prediksi ===
 input_dict = {
-    "anxiety_level":          ui_to_native(ui_anxiety, *FEATURE_RANGES["anxiety_level"]),
-    "self_esteem":            ui_to_native(ui_self_esteem, *FEATURE_RANGES["self_esteem"]),
+    "anxiety_level":          ui_to_native(ui_anxiety,         *FEATURE_RANGES["anxiety_level"]),
+    "self_esteem":            ui_to_native(ui_self_esteem,     *FEATURE_RANGES["self_esteem"]),
     "mental_health_history":  mental_health_history,
-    "depression":             ui_to_native(ui_depression, *FEATURE_RANGES["depression"]),
-    "headache":               ui_to_native(ui_headache, *FEATURE_RANGES["headache"]),
-    "blood_pressure":         ui_to_native(ui_blood_pressure, *FEATURE_RANGES["blood_pressure"]),
-    "sleep_quality":          ui_to_native(ui_sleep_quality, *FEATURE_RANGES["sleep_quality"]),
-    "breathing_problem":      ui_to_native(ui_breathing, *FEATURE_RANGES["breathing_problem"]),
-    "noise_level":            ui_to_native(ui_noise, *FEATURE_RANGES["noise_level"]),
-    "living_conditions":      ui_to_native(ui_living, *FEATURE_RANGES["living_conditions"]),
-    "safety":                 ui_to_native(ui_safety, *FEATURE_RANGES["safety"]),
-    "basic_needs":            ui_to_native(ui_basic_needs, *FEATURE_RANGES["basic_needs"]),
-    "academic_performance":   ui_to_native(ui_academic_perf, *FEATURE_RANGES["academic_performance"]),
-    "study_load":             ui_to_native(ui_study_load, *FEATURE_RANGES["study_load"]),
+    "depression":             ui_to_native(ui_depression,      *FEATURE_RANGES["depression"]),
+    "headache":               ui_to_native(ui_headache,        *FEATURE_RANGES["headache"]),
+    "blood_pressure":         ui_to_native(ui_blood_pressure,  *FEATURE_RANGES["blood_pressure"]),
+    "sleep_quality":          ui_to_native(ui_sleep_quality,   *FEATURE_RANGES["sleep_quality"]),
+    "breathing_problem":      ui_to_native(ui_breathing,       *FEATURE_RANGES["breathing_problem"]),
+    "noise_level":            ui_to_native(ui_noise,           *FEATURE_RANGES["noise_level"]),
+    "living_conditions":      ui_to_native(ui_living,          *FEATURE_RANGES["living_conditions"]),
+    "safety":                 ui_to_native(ui_safety,          *FEATURE_RANGES["safety"]),
+    "basic_needs":            ui_to_native(ui_basic_needs,     *FEATURE_RANGES["basic_needs"]),
+    "academic_performance":   ui_to_native(ui_academic_perf,   *FEATURE_RANGES["academic_performance"]),
+    "study_load":             ui_to_native(ui_study_load,      *FEATURE_RANGES["study_load"]),
     "teacher_student_relationship": ui_to_native(ui_teacher_rel, *FEATURE_RANGES["teacher_student_relationship"]),
-    "future_career_concerns": ui_to_native(ui_career, *FEATURE_RANGES["future_career_concerns"]),
-    "social_support":         ui_to_native(ui_social_support, *FEATURE_RANGES["social_support"]),
-    "peer_pressure":          ui_to_native(ui_peer_pressure, *FEATURE_RANGES["peer_pressure"]),
+    "future_career_concerns": ui_to_native(ui_career,          *FEATURE_RANGES["future_career_concerns"]),
+    "social_support":         ui_to_native(ui_social_support,  *FEATURE_RANGES["social_support"]),
+    "peer_pressure":          ui_to_native(ui_peer_pressure,   *FEATURE_RANGES["peer_pressure"]),
     "extracurricular_activities": ui_to_native(ui_extracurricular, *FEATURE_RANGES["extracurricular_activities"]),
-    "bullying":               ui_to_native(ui_bullying, *FEATURE_RANGES["bullying"]),
+    "bullying":               ui_to_native(ui_bullying,        *FEATURE_RANGES["bullying"]),
 }
-
-# Lanjutkan dengan feature engineering, scaling, prediksi (kode yang sudah ada)
-
 
 # ══════════════════════════════════════════════
 # DATA PROCESSING
 # ══════════════════════════════════════════════
-raw_input = {
-    "anxiety_level": anxiety_level, "self_esteem": self_esteem, "mental_health_history": mental_health_history,
-    "depression": depression, "headache": headache, "blood_pressure": blood_pressure, "sleep_quality": sleep_quality,
-    "breathing_problem": breathing_problem, "noise_level": noise_level, "living_conditions": living_conditions,
-    "safety": safety, "basic_needs": basic_needs, "academic_performance": academic_performance, "study_load": study_load,
-    "teacher_student_relationship": teacher_student_relationship, "future_career_concerns": future_career_concerns,
-    "social_support": social_support, "peer_pressure": peer_pressure, "extracurricular_activities": extracurricular_activities,
-    "bullying": bullying,
-}
+# raw_input diisi dari input_dict yang sudah dikonversi dari skala UI (1-5)
+# ke skala native dataset. Layer presentasi (1-5) terpisah dari layer model.
+raw_input = input_dict
 df_input_raw     = build_input_row(raw_input)
 df_input_scaled  = pd.DataFrame(scaler.transform(df_input_raw), columns=selected_features)
 prediction       = model.predict(df_input_scaled)
@@ -408,7 +494,10 @@ cfg              = STRESS_CONFIG[pred_class]
 st.markdown("### 🎓 Prediksi Tingkat Stres Mahasiswa (XGBoost + SHAP)")
 st.markdown("<p style='color:#64748b; font-size:0.9rem; margin-top:-0.5rem;'>Implementasi Machine Learning berdasarkan metodologi CRISP-DM.</p>", unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Prediksi Individu", "Interpretasi Model", "Ringkasan Data", "Prediksi Batch", "Performa Model"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "Prediksi Individu", "Interpretasi Model", "Ringkasan Data",
+    "Prediksi Batch", "Performa Model"
+])
 
 # ── TAB 1: HASIL PREDIKSI ──
 with tab1:
@@ -425,11 +514,14 @@ with tab1:
         </div>
         """, unsafe_allow_html=True)
 
-        # Ekspor Hasil Individu
         result_df = pd.DataFrame([raw_input])
         result_df["Hasil_Prediksi"] = cfg['label']
         csv = result_df.to_csv(index=False).encode('utf-8')
-        st.download_button(label="📥 Unduh Laporan Analisis (CSV)", data=csv, file_name='laporan_stres_individu.csv', mime='text/csv', use_container_width=True)
+        st.download_button(
+            label="📥 Unduh Laporan Analisis (CSV)",
+            data=csv, file_name='laporan_stres_individu.csv',
+            mime='text/csv', use_container_width=True
+        )
 
     with col_prob:
         st.markdown("<div class='section-title'>Probabilitas Kelas</div>", unsafe_allow_html=True)
@@ -469,7 +561,13 @@ with tab2:
             shap_explainer = get_shap_explainer(model)
             shap_vals      = shap_explainer.shap_values(df_input_scaled)
             sv = shap_vals[pred_class][0] if isinstance(shap_vals, list) else shap_vals[0, :, pred_class]
-            ev = shap_explainer.expected_value[pred_class] if isinstance(shap_vals, list) else (shap_explainer.expected_value[pred_class] if hasattr(shap_explainer.expected_value, "__len__") else shap_explainer.expected_value)
+            ev = (
+                shap_explainer.expected_value[pred_class]
+                if isinstance(shap_vals, list)
+                else (shap_explainer.expected_value[pred_class]
+                      if hasattr(shap_explainer.expected_value, "__len__")
+                      else shap_explainer.expected_value)
+            )
 
             shap_series  = pd.Series(sv, index=selected_features)
             top_positive = shap_series[shap_series > 0].sort_values(ascending=False).head(4)
@@ -479,14 +577,28 @@ with tab2:
             with col_up:
                 st.markdown("<div class='driver-group-title driver-group-title-red'>Top Faktor Pendorong (+)</div>", unsafe_allow_html=True)
                 for rank, (feat, val) in enumerate(top_positive.items(), 1):
-                    st.markdown(f'<div class="driver-card"><span class="driver-rank">#{rank}</span><span class="driver-name">{FEATURE_LABELS.get(feat, feat)}</span><span class="driver-val val-up">+{val:.3f}</span></div>', unsafe_allow_html=True)
+                    st.markdown(
+                        f'<div class="driver-card"><span class="driver-rank">#{rank}</span>'
+                        f'<span class="driver-name">{FEATURE_LABELS.get(feat, feat)}</span>'
+                        f'<span class="driver-val val-up">+{val:.3f}</span></div>',
+                        unsafe_allow_html=True,
+                    )
             with col_down:
                 st.markdown("<div class='driver-group-title driver-group-title-blue'>Top Faktor Penekan (-)</div>", unsafe_allow_html=True)
                 for rank, (feat, val) in enumerate(top_negative.items(), 1):
-                    st.markdown(f'<div class="driver-card"><span class="driver-rank">#{rank}</span><span class="driver-name">{FEATURE_LABELS.get(feat, feat)}</span><span class="driver-val val-down">{val:.3f}</span></div>', unsafe_allow_html=True)
+                    st.markdown(
+                        f'<div class="driver-card"><span class="driver-rank">#{rank}</span>'
+                        f'<span class="driver-name">{FEATURE_LABELS.get(feat, feat)}</span>'
+                        f'<span class="driver-val val-down">{val:.3f}</span></div>',
+                        unsafe_allow_html=True,
+                    )
 
             st.markdown("<div class='section-title' style='margin-top: 2rem;'>Alur Prediksi (Waterfall Chart)</div>", unsafe_allow_html=True)
-            exp = shap.Explanation(values=sv, base_values=float(ev), data=df_input_scaled.iloc[0].values, feature_names=[FEATURE_LABELS.get(f, f) for f in selected_features])
+            exp = shap.Explanation(
+                values=sv, base_values=float(ev),
+                data=df_input_scaled.iloc[0].values,
+                feature_names=[FEATURE_LABELS.get(f, f) for f in selected_features],
+            )
             fig, ax = plt.subplots(figsize=(8, 4.5))
             fig.patch.set_facecolor("#f8fafc")
             shap.plots.waterfall(exp, show=False, max_display=10)
@@ -499,62 +611,65 @@ with tab2:
             st.error(f"Grafik SHAP gagal dimuat: {e}")
 
 
-# ── TAB 3: DATA INPUT SUMMARY (Updated dengan Bar Horizontal Berskala) ──
+# ── TAB 3: DATA INPUT SUMMARY ──
 with tab3:
     st.markdown("<br>", unsafe_allow_html=True)
     col_a, col_b = st.columns([1.5, 1], gap="large")
 
     with col_a:
         st.markdown("<div class='section-title'>Visualisasi Input Mayor (Skala Relatif)</div>", unsafe_allow_html=True)
-        st.markdown("<p style='color:#64748b; font-size:0.85rem; margin-top:-0.5rem; margin-bottom:1rem;'>Nilai dinormalisasi ke persentase (0-100%) agar adil untuk dibandingkan, mengingat setiap fitur memiliki rentang maksimal yang berbeda-beda.</p>", unsafe_allow_html=True)
+        st.markdown(
+            "<p style='color:#64748b; font-size:0.85rem; margin-top:-0.5rem; margin-bottom:1rem;'>"
+            "Nilai dinormalisasi ke persentase (0-100%) agar adil untuk dibandingkan, "
+            "mengingat setiap fitur memiliki rentang maksimal yang berbeda-beda."
+            "</p>", unsafe_allow_html=True,
+        )
 
-        # Mendefinisikan nilai maksimal slider untuk proporsi persentase yang adil
+        # Maksimum persen-base diambil dari FEATURE_RANGES (single source of truth)
         max_ranges = {
-            "anxiety_level": 21,
-            "depression": 27,
-            "self_esteem": 30,
-            "study_load": 5,
-            "peer_pressure": 5
+            "anxiety_level":  FEATURE_RANGES["anxiety_level"][1],
+            "depression":     FEATURE_RANGES["depression"][1],
+            "self_esteem":    FEATURE_RANGES["self_esteem"][1],
+            "study_load":     FEATURE_RANGES["study_load"][1],
+            "peer_pressure":  FEATURE_RANGES["peer_pressure"][1],
         }
 
         selected_to_plot = {k: v for k, v in raw_input.items() if k in max_ranges.keys()}
 
         plot_data = []
         for k, v in selected_to_plot.items():
-            max_val = max_ranges[k]
-            pct = (v / max_val) * 100
+            native_min = FEATURE_RANGES[k][0]
+            native_max = max_ranges[k]
+            denom = (native_max - native_min) if (native_max - native_min) != 0 else 1
+            pct = ((v - native_min) / denom) * 100
             plot_data.append({
-                "Faktor": FEATURE_LABELS.get(k, k),
+                "Faktor":         FEATURE_LABELS.get(k, k),
                 "Intensitas (%)": pct,
-                "Nilai Asli": f"{v} / {max_val}"
+                "Nilai Asli":     f"{v} / {native_max}",
             })
 
         chart_df = pd.DataFrame(plot_data)
 
-        # Menggunakan Altair untuk Bar Chart horizontal dengan label ujung
         bars = alt.Chart(chart_df).mark_bar(color='#3b82f6', cornerRadiusEnd=4, height=22).encode(
             x=alt.X('Intensitas (%):Q', scale=alt.Scale(domain=[0, 100]), title='Skala Relatif Keparahan (%)'),
             y=alt.Y('Faktor:N', sort='-x', title=None, axis=alt.Axis(labelLimit=150, labelFontSize=12)),
-            tooltip=['Faktor', 'Nilai Asli', alt.Tooltip('Intensitas (%):Q', format='.1f')]
+            tooltip=['Faktor', 'Nilai Asli', alt.Tooltip('Intensitas (%):Q', format='.1f')],
         )
 
-        # Teks untuk menunjukkan nilai asli di sebelah bar
         text = bars.mark_text(
-            align='left',
-            baseline='middle',
-            dx=5,
-            fontSize=11,
-            fontWeight=600,
-            color='#1e293b'
-        ).encode(
-            text='Nilai Asli:N'
-        )
+            align='left', baseline='middle', dx=5,
+            fontSize=11, fontWeight=600, color='#1e293b',
+        ).encode(text='Nilai Asli:N')
 
         st.altair_chart((bars + text).properties(height=280), use_container_width=True)
 
     with col_b:
         st.markdown("<div class='section-title'>Fitur Kalkulasi Model</div>", unsafe_allow_html=True)
-        engineered = {"academic_stress_index": df_input_raw["academic_stress_index"].values[0], "environment_quality_index": df_input_raw["environment_quality_index"].values[0], "social_stress_score": df_input_raw["social_stress_score"].values[0]}
+        engineered = {
+            "academic_stress_index":     df_input_raw["academic_stress_index"].values[0],
+            "environment_quality_index": df_input_raw["environment_quality_index"].values[0],
+            "social_stress_score":       df_input_raw["social_stress_score"].values[0],
+        }
         for feat, val in engineered.items():
             st.metric(label=FEATURE_LABELS.get(feat, feat), value=f"{val:.3f}")
         st.caption("Nilai turunan yang dikalkulasi otomatis sesuai algoritma di tahap Data Preparation.")
@@ -566,6 +681,16 @@ with tab4:
     st.markdown("<div class='section-title'>Proses Dataset Sekaligus (Batch Prediction)</div>", unsafe_allow_html=True)
     st.info("Fitur validasi riset: Unggah file CSV data pengujian untuk memprediksi puluhan hingga ratusan responden secara instan.")
 
+    # Daftar kolom yang dibutuhkan (skala native dataset)
+    required_cols = list(FEATURE_RANGES.keys()) + ["mental_health_history"]
+    required_cols = list(dict.fromkeys(required_cols))  # dedup, jaga urutan
+    with st.expander("Lihat kolom yang dibutuhkan pada CSV"):
+        st.caption(
+            "File CSV harus berisi kolom-kolom berikut dalam skala asli dataset "
+            "(bukan skala UI 1-5). Kolom selain ini akan diabaikan."
+        )
+        st.code(", ".join(required_cols), language="text")
+
     uploaded_file = st.file_uploader("Unggah File CSV Dataset Uji", type=["csv"])
 
     if uploaded_file is not None:
@@ -573,26 +698,48 @@ with tab4:
             df_batch = pd.read_csv(uploaded_file)
             st.write("Preview Data Uji:", df_batch.head())
 
-            if st.button("Jalankan Prediksi Batch", type="primary"):
+            missing = [c for c in required_cols if c not in df_batch.columns]
+            if missing:
+                st.error(
+                    f"❌ Kolom berikut tidak ditemukan pada CSV: {missing}. "
+                    "Pastikan format file sesuai dengan kolom yang dibutuhkan."
+                )
+            elif st.button("Jalankan Prediksi Batch", type="primary"):
                 with st.spinner("Model sedang memproses..."):
                     processed_rows = []
                     for _, row in df_batch.iterrows():
                         processed_rows.append(build_input_row(row.to_dict()).iloc[0])
 
                     df_batch_raw = pd.DataFrame(processed_rows)
-                    df_batch_scaled = pd.DataFrame(scaler.transform(df_batch_raw), columns=selected_features)
+                    df_batch_scaled = pd.DataFrame(
+                        scaler.transform(df_batch_raw), columns=selected_features
+                    )
 
                     batch_preds = model.predict(df_batch_scaled)
                     df_batch["Hasil_Prediksi_Numerik"] = batch_preds
-                    df_batch["Hasil_Prediksi_Label"] = df_batch["Hasil_Prediksi_Numerik"].map(lambda x: STRESS_CONFIG[x]["label"])
+                    df_batch["Hasil_Prediksi_Label"] = df_batch["Hasil_Prediksi_Numerik"].map(
+                        lambda x: STRESS_CONFIG[x]["label"]
+                    )
 
                     st.success(f"Berhasil mengklasifikasikan {len(df_batch)} baris data!")
-                    st.dataframe(df_batch[["Hasil_Prediksi_Label"] + [c for c in df_batch.columns if c not in ["Hasil_Prediksi_Label", "Hasil_Prediksi_Numerik"]]])
+                    st.dataframe(df_batch[
+                        ["Hasil_Prediksi_Label"] +
+                        [c for c in df_batch.columns if c not in ["Hasil_Prediksi_Label", "Hasil_Prediksi_Numerik"]]
+                    ])
 
                     csv_batch = df_batch.to_csv(index=False).encode('utf-8')
-                    st.download_button(label="📥 Unduh Hasil Uji Batch (CSV)", data=csv_batch, file_name='hasil_prediksi_batch.csv', mime='text/csv')
+                    st.download_button(
+                        label="📥 Unduh Hasil Uji Batch (CSV)",
+                        data=csv_batch,
+                        file_name='hasil_prediksi_batch.csv',
+                        mime='text/csv',
+                    )
         except Exception as e:
-            st.error(f"Terjadi kesalahan saat memproses file: {e}. Pastikan format kolom sama persis dengan atribut fitur.")
+            st.error(
+                f"Terjadi kesalahan saat memproses file: {e}. "
+                "Pastikan format kolom sama persis dengan atribut fitur."
+            )
+
 
 # ── TAB 5: PERFORMA MODEL ──
 with tab5:
@@ -600,19 +747,23 @@ with tab5:
     st.markdown("<div class='section-title'>Evaluasi & Metrik Model Terbaik (XGBoost)</div>", unsafe_allow_html=True)
     st.markdown("""
     <p style='color:#475569; font-size:0.9rem; line-height:1.6; margin-bottom: 1.5rem;'>
-        Berdasarkan komparasi algoritma (XGBoost vs Random Forest vs LightGBM) yang telah dievaluasi dengan metode <strong>Cross-Validation 5-Fold</strong> serta dilacak secara riwayat terpusat menggunakan <strong>Weights & Biases (W&B)</strong>, model XGBoost ditetapkan sebagai algoritma terbaik dengan performa sebagai berikut:
+        Berdasarkan komparasi algoritma (XGBoost vs Random Forest vs LightGBM) yang telah
+        dievaluasi dengan metode <strong>Cross-Validation 5-Fold</strong> serta divalidasi
+        secara statistik melalui <strong>paired t-test</strong> dan <strong>McNemar test</strong>,
+        XGBoost ditetapkan sebagai algoritma terbaik. Riwayat eksperimen tercatat secara
+        terpusat menggunakan <strong>Weights &amp; Biases (W&amp;B)</strong>.
     </p>
     """, unsafe_allow_html=True)
 
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
     with col_m1:
-        st.markdown("<div class='thesis-metric-box'><div class='thesis-metric-title'>Akurasi Uji</div><div class='thesis-metric-val'>~90%+</div></div>", unsafe_allow_html=True)
+        st.markdown("<div class='thesis-metric-box'><div class='thesis-metric-title'>Akurasi Uji</div><div class='thesis-metric-val'>89,55%</div></div>", unsafe_allow_html=True)
     with col_m2:
-        st.markdown("<div class='thesis-metric-box'><div class='thesis-metric-title'>Macro F1-Score</div><div class='thesis-metric-val'>Terbaik</div></div>", unsafe_allow_html=True)
+        st.markdown("<div class='thesis-metric-box'><div class='thesis-metric-title'>Macro F1-Score</div><div class='thesis-metric-val'>0,8955</div></div>", unsafe_allow_html=True)
     with col_m3:
-        st.markdown("<div class='thesis-metric-box'><div class='thesis-metric-title'>ROC-AUC</div><div class='thesis-metric-val'>Terbaik</div></div>", unsafe_allow_html=True)
+        st.markdown("<div class='thesis-metric-box'><div class='thesis-metric-title'>CV F1 Mean</div><div class='thesis-metric-val'>0,8864</div></div>", unsafe_allow_html=True)
     with col_m4:
-        st.markdown("<div class='thesis-metric-box'><div class='thesis-metric-title'>CV F1 Mean</div><div class='thesis-metric-val'>Stabil</div></div>", unsafe_allow_html=True)
+        st.markdown("<div class='thesis-metric-box'><div class='thesis-metric-title'>CV F1 Std</div><div class='thesis-metric-val'>0,0243</div></div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("""
@@ -620,7 +771,7 @@ with tab5:
     1. **Business Understanding**: Merumuskan permasalahan deteksi tingkat stres di kalangan mahasiswa.
     2. **Data Understanding**: Menemukan korelasi fitur psikologis, lingkungan, akademik, dan fisik terhadap stres.
     3. **Data Preparation**: Imputasi data, perhitungan indeks fitur gabungan (*Feature Engineering*), Seleksi Fitur, dan Normalisasi (Standard Scaler).
-    4. **Modeling**: Hyperparameter Tuning dan perbandingan algoritma ansambel menggunakan W&B.
-    5. **Evaluation**: XGBoost mendominasi kinerja prediksi serta memiliki kompatibilitas penuh dengan SHAP TreeExplainer.
-    6. **Deployment**: Aplikasi *Machine Learning* interaktif ini dibangun menggunakan Streamlit.
+    4. **Modeling**: Hyperparameter Tuning (RandomizedSearchCV) dan perbandingan tiga algoritma ensemble.
+    5. **Evaluation**: Cross-Validation 5-fold (justifikasi: perbandingan k=3, 5, 10) + significance test (paired t-test & McNemar) + evaluasi interpretability metodologis (faithfulness, stability, sparsity, agreement-with-domain).
+    6. **Deployment**: Aplikasi *Machine Learning* interaktif ini dibangun menggunakan Streamlit dengan slider skala seragam 1-5 untuk pengalaman pengguna yang intuitif.
     """)
